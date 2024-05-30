@@ -1,0 +1,14 @@
+---
+name: swim
+version: 2.0.0
+main: core\SwimCore
+api: 5.0.0
+
+permissions:
+  use.all:
+    default: true
+  use.op:
+    default: op
+  use.staff:
+    default: op
+...

@@ -1,0 +1,16 @@
+projects:
+  swim:
+    path: ""
+    compressBuilds: false
+    libs:
+      - src: poggit/libasynql/libasynql 
+        version: ^4.1.0
+        epitope: .random
+      - src: Ifera/ScoreFactory/ScoreFactory
+        version: ^3.1.0
+      - src: jojoe77777/FormAPI/libFormAPI
+        version: ^2.1.1
+      - src: muqsit/InvMenu/InvMenu
+        version: ^4.4.1
+      - src: jasonw4331/libpmquery/libpmquery
+        version: ^1.0.0
