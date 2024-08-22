@@ -5,7 +5,7 @@ namespace core\systems\player\components\behaviors;
 use core\SwimCore;
 use core\systems\player\Component;
 use core\systems\player\SwimPlayer;
-use core\Utils\BehaviorEventEnums;
+use core\utils\BehaviorEventEnums;
 use pocketmine\event\block\BlockBreakEvent;
 use pocketmine\event\block\BlockPlaceEvent;
 use pocketmine\event\entity\EntityDamageByChildEntityEvent;
@@ -18,6 +18,7 @@ use pocketmine\event\entity\EntityTeleportEvent;
 use pocketmine\event\entity\ProjectileHitEntityEvent;
 use pocketmine\event\entity\ProjectileHitEvent;
 use pocketmine\event\entity\ProjectileLaunchEvent;
+use pocketmine\event\Event;
 use pocketmine\event\inventory\InventoryTransactionEvent;
 use pocketmine\event\player\PlayerDropItemEvent;
 use pocketmine\event\player\PlayerInteractEvent;
@@ -191,6 +192,12 @@ abstract class EventBehaviorComponent extends Component
     // no op default
   }
 
+  // for anything else, kind of hacky
+  public function eventMessage(Event $event, string $message, mixed $args)
+  {
+
+  }
+
   public final function event(mixed $event, int $eventEnum): void
   {
     if (!$this->doesEvents) return;
@@ -318,6 +325,7 @@ abstract class EventBehaviorComponent extends Component
   }
 
   // this event can not be cancelled and should not be cancelled, so we don't allow it being registered and checked to be cancelled
+  // this is not called back right now for performance reasons
   protected function dataPacketReceiveEvent(DataPacketReceiveEvent $event): void
   {
 

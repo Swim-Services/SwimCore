@@ -30,8 +30,8 @@ class InventoryUtil
   // clear XP
   public static function clearXP(Player $player): void
   {
-    $player->getXpManager()->setXplevel(0);
-    $player->getXpManager()->setXpProgress(0.0);
+    $player->getXpManager()?->setXplevel(0);
+    $player->getXpManager()?->setXpProgress(0.0);
   }
 
   // clears a player's inventory, effects, xp, hp, food, flight, and sets them to adventure

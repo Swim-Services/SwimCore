@@ -10,6 +10,9 @@ use pocketmine\player\Player;
 class PlayerSystem extends System
 {
 
+  /**
+   * @var SwimPlayer[]
+   */
   private array $players = []; // an array of SwimPlayers
 
   public function init(): void
@@ -66,6 +69,14 @@ class PlayerSystem extends System
   public function handlePlayerLeave(SwimPlayer $swimPlayer): void
   {
     $this->unregisterPlayer($swimPlayer);
+  }
+
+  /**
+   * @return SwimPlayer[]
+   */
+  public function getPlayers(): array
+  {
+    return $this->players;
   }
 
 }

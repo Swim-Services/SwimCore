@@ -66,6 +66,7 @@ class Party
 
     // toggles
     $this->settings = [
+      'random' => false, // randomized teams for self duels
       'allowDuelInvites' => true, // Allows parties to send you duel requests
       'allowJoinRequests' => true, // Allows people to request to join your party
       'openJoin' => false, // Allows people to openly join your party right away
@@ -192,7 +193,7 @@ class Party
 
   public function invitePlayer(SwimPlayer $invited, SwimPlayer $inviter): void
   {
-    if ($invited->isConnected() && $invited->getSceneHelper()->getScene()->getSceneName() === "Hub" && !$invited->getSceneHelper()->isInParty()) {
+    if ($invited->isConnected() && $invited->getSceneHelper()?->getScene()?->getSceneName() === "Hub" && !$invited->getSceneHelper()?->isInParty()) {
       if (Party::shouldInvite($this)) {
         $invited->getInvites()->partyInvitePlayer($inviter, $this);
       }
@@ -251,13 +252,18 @@ class Party
 
   // this should be called with care! Intended for when the leader has already left the data structure, or when manually switching the party leader
   // this just gets the first person in the party, maybe we should instead make it be the person with the highest rank?
-  public function assignNewPartyLeader(): SwimPlayer
+  public function assignNewPartyLeader(): ?SwimPlayer
   {
-    $this->leader = reset($this->players); // first player in the array
-    $this->leader->sendMessage(TextFormat::GREEN . "You are now the party leader of " . TextFormat::YELLOW . $this->partyName);
-    $this->determineMaxPartySize(); // need to redetermine size
-    $this->setHubKits();
-    return $this->leader; // also returns the new leader that was set
+    $leader = reset($this->players);
+    if ($leader) {
+      $this->leader = $leader;// first player in the array
+      $this->leader->sendMessage(TextFormat::GREEN . "You are now the party leader of " . TextFormat::YELLOW . $this->partyName);
+      $this->determineMaxPartySize(); // need to redetermine size
+      $this->setHubKits();
+      return $this->leader; // also returns the new leader that was set
+    }
+
+    return null;
   }
 
   // setting a new party leader refreshes the maximum party size, but does not force anyone out
@@ -288,12 +294,22 @@ class Party
     if (!$this->inDuel) {
       $this->partyHubKit($player, $player === $this->leader);
     }
+
+    $this->refreshHubScoreTagsForAll();
+  }
+
+  private function refreshHubScoreTagsForAll(): void
+  {
+    foreach ($this->players as $player) {
+      if ($player->isConnected() && $player->getSceneHelper()?->getScene()?->getSceneName() == "Hub") {
+        $player->setScoreTag(TextFormat::GREEN . $this->partyName . TextFormat::GRAY . " | " . $this->formatSize());
+      }
+    }
   }
 
   // this automatically handles setting a new party leader
 
   /**
-   * @throws JsonException
    * @throws ScoreFactoryException
    */
   public function removePlayerFromParty(SwimPlayer $player): void
@@ -311,13 +327,21 @@ class Party
       $player->getSceneHelper()->setParty(null);
       $player->getInvites()->clearAllInvites(); // reset party invites as well
 
+      $shouldRefresh = true;
       if ($this->currentPartySize <= 0) {
         // if no one left in the party, delete the party
         $this->core->getSystemManager()->getPartySystem()->disbandParty($this);
+        $shouldRefresh = false;
       } else if ($needNewLeader) {
         // otherwise pick a new leader
-        $this->assignNewPartyLeader();
+        $newLeader = $this->assignNewPartyLeader();
+        // if failed just kill off the party
+        if (!$newLeader) {
+          $this->core->getSystemManager()->getPartySystem()->disbandParty($this);
+        }
       }
+      // score tag refresh afterwards
+      if ($shouldRefresh) $this->refreshHubScoreTagsForAll();
     }
   }
 
@@ -392,7 +416,9 @@ class Party
   public function partyMessage(string $message): void
   {
     foreach ($this->players as $player) {
-      $player->sendMessage($message);
+      if ($player->isConnected()) {
+        $player->sendMessage($message);
+      }
     }
   }
 
@@ -439,8 +465,7 @@ class Party
   }
 
   /**
-   * @throws JsonException
-   * @throws ScoreFactoryException
+   * @throws ScoreFactoryException|JsonException
    */
   public function startSelfDuel(string $mode): void
   {
@@ -479,9 +504,17 @@ class Party
     $playersCount = count($this->players);
     $playersPerTeam = (int)ceil($playersCount / 2); // Use ceil to handle odd numbers
 
+    // We have to copy the data structure because we will shuffle it if randomized, and we don't want to permanently impact the order of the teams
+    $tempPlayers = $this->players; // this isn't that big a deal because of copy on write, I.E only copied if shuffle is called on it
+
+    // Shuffle the players array if we want to randomize teams
+    if ($this->settings['random']) {
+      shuffle($tempPlayers);
+    }
+
     // Split the players array into two halves
-    $teamOnePlayers = array_slice($this->players, 0, $playersPerTeam);
-    $teamTwoPlayers = array_slice($this->players, $playersPerTeam);
+    $teamOnePlayers = array_slice($tempPlayers, 0, $playersPerTeam);
+    $teamTwoPlayers = array_slice($tempPlayers, $playersPerTeam);
 
     // Assign players to the Red team
     foreach ($teamOnePlayers as $player) {
@@ -501,10 +534,10 @@ class Party
 
     // warp in physically
     $duel->warpPlayersIn();
+    if (SwimCore::$DEBUG) $duel->dumpDuel();
   }
 
   /**
-   * @throws JsonException
    * @throws ScoreFactoryException
    */
   public function startPartyVsPartyDuel(Party $otherParty, string $mode): void

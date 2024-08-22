@@ -7,18 +7,6 @@ use DateTime;
 class TimeHelper
 {
 
-  public static function isTimestampDifferenceGreaterOrEqual30Seconds($timestamp): bool
-  {
-    // Get the current Unix timestamp
-    $currentTime = time();
-
-    // Calculate the absolute difference in seconds
-    $difference = abs($currentTime - $timestamp);
-
-    // Check if the difference is 30 seconds or more
-    return $difference >= 30;
-  }
-
   // 20 ticks a second
   public static function secondsToTicks(int|float $seconds): int|float
   {

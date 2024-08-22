@@ -2,6 +2,7 @@
 
 namespace core\scenes\hub;
 
+use core\custom\behaviors\player_event_behaviors\MaxDistance;
 use core\custom\prefabs\hub\HubEntities;
 use core\forms\hub\FormDuelRequests;
 use core\forms\hub\FormDuels;
@@ -30,6 +31,11 @@ use ReflectionException;
 class Hub extends Scene
 {
 
+  public static function AutoLoad(): bool
+  {
+    return true;
+  }
+
   /**
    * @throws ReflectionException
    */
@@ -51,6 +57,7 @@ class Hub extends Scene
 
   public function playerAdded(SwimPlayer $player): void
   {
+    $player->getEventBehaviorComponentManager()->registerComponent(new MaxDistance("max", $this->core, $player));
     $this->restart($player);
   }
 

@@ -2,6 +2,7 @@
 
 namespace core\scenes;
 
+use core\custom\prefabs\rod\FishingHook;
 use core\SwimCore;
 use core\systems\player\SwimPlayer;
 use core\systems\scene\managers\BlocksManager;
@@ -35,6 +36,7 @@ abstract class PvP extends Scene
   protected int $hitCoolDown; // in ticks
   protected float $pearlKB;
   protected float $snowballKB;
+  protected float $rodKB;
   protected float $arrowKB;
   protected float $pearlSpeed;
   protected float $pearlGravity;
@@ -58,6 +60,7 @@ abstract class PvP extends Scene
     $this->hitCoolDown = 10;
     $this->pearlKB = 0.6;
     $this->snowballKB = 0.5;
+    $this->rodKB = 0.35;
     $this->arrowKB = 0.5;
     $this->pearlSpeed = 2.5;
     $this->pearlGravity = 0.1;
@@ -103,7 +106,7 @@ abstract class PvP extends Scene
       if ($event->getFinalDamage() >= $swimPlayer->getHealth() && !$event->isCancelled()) { // event can be cancelled by player takes misc damage
         $event->cancel();
         // gameplay scripting callback
-        $this->playedDiedToMiscDamage($event, $swimPlayer);
+        $this->playerDiedToMiscDamage($event, $swimPlayer);
       }
     }
   }
@@ -114,7 +117,7 @@ abstract class PvP extends Scene
   }
 
   // you really should override this method
-  protected function playedDiedToMiscDamage(EntityDamageEvent $event, SwimPlayer $swimPlayer): void
+  protected function playerDiedToMiscDamage(EntityDamageEvent $event, SwimPlayer $swimPlayer): void
   {
     var_dump("WARNING | " . $this->sceneName . " DID NOT HANDLE NATURAL CAUSE DEATH OF PLAYER " . $swimPlayer->getName());
   }
@@ -173,7 +176,10 @@ abstract class PvP extends Scene
           $event->setKnockBack($this->arrowKB);
         } else if ($child instanceof SnowballEntity) {
           $event->setKnockBack($this->snowballKB);
+        } else if ($child instanceof FishingHook) {
+          $event->setKnockBack($this->rodKB);
         }
+
         // this allows projectile combos by turning cool down to 1 tick
         $event->setAttackCooldown(1);
 

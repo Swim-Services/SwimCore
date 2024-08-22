@@ -4,7 +4,7 @@ namespace core\scenes\hub;
 
 use core\systems\player\SwimPlayer;
 use core\systems\scene\Scene;
-use core\Utils\BehaviorEventEnums;
+use core\utils\BehaviorEventEnums;
 use core\utils\PositionHelper;
 use core\utils\ServerSounds;
 use pocketmine\player\GameMode;
@@ -16,6 +16,11 @@ class Loading extends Scene
 {
 
   private Position $safeSpawn;
+
+  public static function AutoLoad(): bool
+  {
+    return true;
+  }
 
   public function init(): void
   {

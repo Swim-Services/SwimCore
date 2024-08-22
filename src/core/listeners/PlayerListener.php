@@ -3,6 +3,7 @@
 namespace core\listeners;
 
 use core\database\queries\ConnectionHandler;
+use core\scenes\PvP;
 use core\SwimCore;
 use core\systems\player\components\ClickHandler;
 use core\systems\player\PlayerSystem;
@@ -10,11 +11,14 @@ use core\systems\player\SwimPlayer;
 use core\systems\SystemManager;
 use core\Utils\BehaviorEventEnums;
 use core\utils\InventoryUtil;
+use core\utils\PositionHelper;
 use jackmd\scorefactory\ScoreFactoryException;
 use JsonException;
 use pocketmine\block\BlockTypeIds;
 use pocketmine\event\block\BlockBreakEvent;
+use pocketmine\event\block\BlockFormEvent;
 use pocketmine\event\block\BlockPlaceEvent;
+use pocketmine\event\block\BlockSpreadEvent;
 use pocketmine\event\entity\EntityDamageByChildEntityEvent;
 use pocketmine\event\entity\EntityDamageByEntityEvent;
 use pocketmine\event\entity\EntityDamageEvent;
@@ -27,6 +31,8 @@ use pocketmine\event\entity\ProjectileHitEvent;
 use pocketmine\event\entity\ProjectileLaunchEvent;
 use pocketmine\event\inventory\InventoryTransactionEvent;
 use pocketmine\event\Listener;
+use pocketmine\event\player\PlayerBucketEmptyEvent;
+use pocketmine\event\player\PlayerBucketFillEvent;
 use pocketmine\event\player\PlayerChatEvent;
 use pocketmine\event\player\PlayerCreationEvent;
 use pocketmine\event\player\PlayerDropItemEvent;
@@ -183,8 +189,6 @@ class PlayerListener implements Listener
   }
 
   /**
-   * @throws ScoreFactoryException
-   * @throws JsonException
    * @priority HIGHEST
    * @handleCancelled
    */
@@ -319,6 +323,71 @@ class PlayerListener implements Listener
     $sp->event($event, BehaviorEventEnums::BLOCK_BREAK_EVENT);
     if ($event->isCancelled()) return;
     $sp->getSceneHelper()?->getScene()->sceneBlockBreakEvent($event, $sp);
+    // desperate fix
+    if (!$sp->getSceneHelper()) {
+      $event->cancel();
+    } else if (!$sp->getSceneHelper()->getScene()) {
+      $event->cancel();
+    }
+  }
+
+  public function bucketEmpty(PlayerBucketEmptyEvent $event)
+  {
+    /* @var SwimPlayer $sp */
+    $sp = $event->getPlayer();
+    $sp->event($event, BehaviorEventEnums::BUCKET_EMPTY_EVENT);
+    if ($event->isCancelled()) return;
+
+    $scene = $sp->getSceneHelper()?->getScene();
+    if ($scene) {
+      $scene->sceneBucketEmptyEvent($event, $sp);
+      if (!$event->isCancelled() && $scene instanceof PvP) {
+        $scene->getBlockManager()->handleBucketDump($event);
+      }
+    }
+  }
+
+  public function bucketFill(PlayerBucketFillEvent $event)
+  {
+    /* @var SwimPlayer $sp */
+    $sp = $event->getPlayer();
+    $sp->event($event, BehaviorEventEnums::BUCKET_FILL_EVENT);
+    if ($event->isCancelled()) return;
+    $sp->getSceneHelper()?->getScene()->sceneBucketFillEvent($event, $sp);
+  }
+
+  public function blockSpread(BlockSpreadEvent $event)
+  {
+    $this->handleNaturalEvent($event);
+  }
+
+  public function blockForm(BlockFormEvent $event)
+  {
+    $this->handleNaturalEvent($event);
+  }
+
+  private function handleNaturalEvent(BlockSpreadEvent|BlockFormEvent $event): void
+  {
+    $scene = $this->getSceneFromBlockEvent($event); // attempt to get the scene the block event happened in
+    if ($scene) {
+      $scene->getBlockManager()->handleNaturalBlockEvent($event);
+    } else {
+      $event->cancel();
+    }
+  }
+
+  private function getSceneFromBlockEvent(BlockSpreadEvent|BlockFormEvent $event): ?PvP
+  {
+    $pos = $event->getBlock()->getPosition();
+    $nearest = PositionHelper::getNearestPlayer($pos); // nearest player's scene (this is only going to work well for scenes that are seperated far away)
+    if ($nearest) {
+      $scene = $nearest->getSceneHelper()?->getScene() ?? null;
+      if ($scene instanceof PvP) { // only pvp scenes have a block manager, this could be seen as a design flaw, but almost all our scenes derive from pvp anyway
+        return $scene;
+      }
+    }
+
+    return null;
   }
 
   public function startFlying(PlayerToggleFlightEvent $event)
@@ -337,6 +406,7 @@ class PlayerListener implements Listener
     $sp->event($event, BehaviorEventEnums::PLAYER_JUMP_EVENT);
     $sp->getSceneHelper()?->getScene()->scenePlayerJumpEvent($event, $sp);
   }
+
 
   // lag causer possibly, we do need this though but only for behavior components
   public function dataPacketReceiveEvent(DataPacketReceiveEvent $event)

@@ -41,7 +41,7 @@ class EventForms
       $invited = $buttons[$data];
 
       if ($invited instanceof SwimPlayer) {
-        $team->attemptInvite($player, $invited);
+        $team?->attemptInvite($player, $invited);
       } else {
         $player->sendMessage(TextFormat::RED . "Failed to invite player");
       }
@@ -52,6 +52,7 @@ class EventForms
       $form->addButton($player->getNicks()->getNick());
       $buttons[] = $player;
     }
+
     $swimPlayer->sendForm($form);
   }
 
@@ -64,7 +65,7 @@ class EventForms
 
       $picked = $buttons[$data];
       if ($picked instanceof SwimPlayer) {
-        $team->leave($picked);
+        $team?->leave($picked);
       } else {
         $player->sendMessage(TextFormat::RED . "Failed to kick player");
       }
@@ -72,11 +73,12 @@ class EventForms
 
     $form->setTitle(TextFormat::RED . "Kick Players");
     foreach ($team->getMembers() as $member) {
-      if ($member->getId() !== $swimPlayer->getId()) {
+      if ($member && $member !== $swimPlayer) {
         $form->addButton($member->getName());
         $buttons[] = $member;
       }
     }
+
     $swimPlayer->sendForm($form);
   }
 
@@ -86,7 +88,7 @@ class EventForms
       if ($data === null) return;
 
       if ($data == 0) {  // Yes
-        $team->leave($player);
+        $team?->leave($player);
       }
     });
 
@@ -138,7 +140,12 @@ class EventForms
 
       switch ($data) {
         case 0: // Accept
-          $selectedTeam->attemptJoin($player);
+          if ($selectedTeam && $player->getSceneHelper()?->getEvent()?->isValidTeam($selectedTeam)) {
+            $selectedTeam->attemptJoin($player);
+          } else {
+            $player->getInvites()?->removeTeamInvite($selectedTeam);
+            $player->sendMessage(TextFormat::RED . "That team does not exist anymore.");
+          }
           break;
         case 1: // Reject
           $player->sendMessage(TextFormat::RED . "You have rejected the invite.");
@@ -190,16 +197,16 @@ class EventForms
     $form = new SimpleForm(function (SwimPlayer $player, $data) use ($players, $event, &$buttons) {
       if ($data === null) return;
 
-      var_dump("attempting to block");
-
       $selectedPlayer = $buttons[$data];
-      $event->addToBlockedList($selectedPlayer);
-      $player->sendMessage(TextFormat::RED . "Player " . $selectedPlayer->getName() . " has been added to the blocked list.");
+      if ($selectedPlayer && $event) {
+        $event->addToBlockedList($selectedPlayer);
+        $player->sendMessage(TextFormat::RED . "Player " . $selectedPlayer->getName() . " has been added to the blocked list.");
+      }
     });
 
     $form->setTitle(TextFormat::RED . "Add Player to Blocked List");
     foreach ($players as $player) {
-      if (!$event->isBlocked($player) && $player->getId() != $swimPlayer->getId()) {
+      if (!$event->isBlocked($player) && $player !== $swimPlayer) {
         $form->addButton($player->getName());
         $buttons[] = $player;
       }
@@ -218,14 +225,18 @@ class EventForms
       if ($data === null) return;
 
       $selectedPlayer = $buttons[$data];
-      $event->removeFromBlockedList($selectedPlayer);
-      $player->sendMessage(TextFormat::GREEN . "Player " . $selectedPlayer->getName() . " has been removed from the blocked list.");
+      if ($selectedPlayer) {
+        $event?->removeFromBlockedList($selectedPlayer);
+        $player->sendMessage(TextFormat::GREEN . "Player " . $selectedPlayer->getName() . " has been removed from the blocked list.");
+      }
     });
 
     $form->setTitle(TextFormat::GREEN . "Remove Player from Blocked List");
     foreach ($blockedPlayers as $player) {
-      $form->addButton($player->getName());
-      $buttons[] = $player;
+      if ($player) {
+        $form->addButton($player->getName());
+        $buttons[] = $player;
+      }
     }
 
     $swimPlayer->sendForm($form);
@@ -239,28 +250,31 @@ class EventForms
     $buttons = array();
 
     $form = new SimpleForm(function (SwimPlayer $player, $data) use ($event, &$buttons) {
-      if($data === null) return;
+      if ($data === null) return;
 
       $playerToKick = $buttons[$data];
       if ($playerToKick instanceof SwimPlayer) {
         // remove them from there team first
-        $team = $event->getTeamPlayerIsIn($playerToKick);
-        $team?->leave($playerToKick, false);
+        if ($event) {
+          $team = $event->getTeamPlayerIsIn($playerToKick);
+          $team?->leave($playerToKick, false);
 
-        // then remove them from the event and block them
-        $event->leave($playerToKick);
-        $event->addToBlockedList($playerToKick);
-        $player->sendMessage(TextFormat::RED . "You have kicked and blocked " . $playerToKick->getNicks()->getNick());
+          // then remove them from the event and block them
+          $event->leave($playerToKick);
+          $event->addToBlockedList($playerToKick);
+          $player->sendMessage(TextFormat::RED . "You have kicked and blocked " . $playerToKick->getNicks()->getNick());
+        }
       }
     });
 
     $form->setTitle(TextFormat::DARK_RED . "Kick and Block Player");
     foreach ($event->getPlayers() as $player) {
-      if ($player->getId() !== $swimPlayer->getId()) { // Exclude the managing player
+      if ($player !== $swimPlayer) { // Exclude the managing player
         $form->addButton($player->getName());
         $buttons[] = $player;
       }
     }
+
     $swimPlayer->sendForm($form);
   }
 

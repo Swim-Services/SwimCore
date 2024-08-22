@@ -4,7 +4,7 @@ namespace core\scenes\ffas;
 
 use core\SwimCore;
 use core\systems\player\SwimPlayer;
-use core\Utils\BehaviorEventEnums;
+use core\utils\BehaviorEventEnums;
 use core\utils\CustomDamage;
 use core\utils\InventoryUtil;
 use jackmd\scorefactory\ScoreFactoryException;
@@ -75,12 +75,10 @@ class MidFightFFA extends FFA
   private function midfKillMessage(SwimPlayer $attacker, SwimPlayer $victim): void
   {
     $attackerName = $attacker->getNicks()->getNick();
-    $attackerHP = round($attacker->getHealth(), 1);
-    $attackerHealthString = " " . TextFormat::GRAY . "[" . TextFormat::YELLOW . $attackerHP . " HP" . TextFormat::GRAY . "]";
+    $attackerHP = round($attacker->getHealth() / 2, 1);
+    $attackerHealthString = " " . TextFormat::GRAY . "[" . TextFormat::YELLOW . $attackerHP . " Hearts" . TextFormat::GRAY . "]";
 
     $victimName = $victim->getNicks()->getNick();
-    // $victimHP = $victim->getHealth();
-    //$victimHealthString = " " . TextFormat::GRAY . "[" . TextFormat::YELLOW . $victimHP . " HP" . TextFormat::GRAY . "]";
 
     $midFFA = TextFormat::BOLD . TextFormat::GRAY . "[" . TextFormat::AQUA . "MID FFA" . TextFormat::GRAY . "]" . TextFormat::RESET . " ";
 

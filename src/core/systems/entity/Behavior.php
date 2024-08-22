@@ -2,16 +2,17 @@
 
 namespace core\systems\entity;
 
+use core\systems\entity\entities\CustomEntity;
 use core\systems\scene\Scene;
 use pocketmine\entity\Entity;
 
 abstract class Behavior
 {
 
-  protected Entity $parent;
+  protected Entity|CustomEntity $parent;
   protected ?Scene $scene;
 
-  public function __construct(Entity $customEntity, ?Scene $scene = null)
+  public function __construct(Entity|CustomEntity $customEntity, ?Scene $scene = null)
   {
     $this->parent = $customEntity;
     $this->scene = $scene;
@@ -26,17 +27,17 @@ abstract class Behavior
   abstract public function exit();
 
   /**
-   * @return Entity
+   * @return Entity|CustomEntity
    */
-  public function getParent(): Entity
+  public function getParent(): Entity|CustomEntity
   {
     return $this->parent;
   }
 
   /**
-   * @param Entity $parent
+   * @param CustomEntity|Entity $parent
    */
-  public function setParent(Entity $parent): void
+  public function setParent(Entity|CustomEntity $parent): void
   {
     $this->parent = $parent;
   }

@@ -121,24 +121,30 @@ class Rank extends Component
     return self::$rankAbbreviations[$rank] ?? TextFormat::RESET;
   }
 
-  public function loadRank(): Generator
+  public function load(): Generator
   {
     $xuid = $this->swimPlayer->getXuid();
     $name = $this->swimPlayer->getName();
     $query = "SELECT playerRank FROM Ranks WHERE xuid = ?";
     $rows = yield from Await::promise(fn($resolve, $reject) => SwimDB::getDatabase()->executeImplRaw([0 => $query], [0 => [$xuid]], [0 => SqlThread::MODE_SELECT], $resolve, $reject));
-    if (isset($rows[0]->getRows()[0])) {
-      $data = $rows[0]->getRows()[0];
-      $rank = $data['playerRank'];
-      $this->rank = $this->swimPlayer->hasPermission(DefaultPermissions::ROOT_OPERATOR) ? self::OWNER_RANK : $rank;
-      // echo("The rank of player with XUID $xuid is $rank \n");
-    } else {
-      // echo("No rank found for player with XUID $xuid \n");
-      $this->rank = $this->swimPlayer->hasPermission(DefaultPermissions::ROOT_OPERATOR) ? self::OWNER_RANK : self::DEFAULT_RANK;
-      self::insertUpdateRankInDatabase($xuid, $name, 0);
-    }
 
-    $this->updatePerms();
+    // player must be connected to load data
+    if ($this->swimPlayer->isConnected()) {
+      if (isset($rows[0]->getRows()[0])) {
+        $data = $rows[0]->getRows()[0];
+        $rank = $data['playerRank'];
+        $this->rank = $this->swimPlayer->hasPermission(DefaultPermissions::ROOT_OPERATOR) ? self::OWNER_RANK : $rank;
+        // echo("The rank of player with XUID $xuid is $rank \n");
+      } else {
+        // echo("No rank found for player with XUID $xuid \n");
+        $this->rank = $this->swimPlayer->hasPermission(DefaultPermissions::ROOT_OPERATOR) ? self::OWNER_RANK : self::DEFAULT_RANK;
+        self::insertUpdateRankInDatabase($xuid, $name, 0);
+      }
+      // letting us know a root admin logged in because that's pretty important to log for security reasons
+      // if ($this->rank == self::OWNER_RANK) CordHook::sendEmbed($name . " logged in and has Owner Rank", "Owner Rank Join Alert");
+      // remember to update perms
+      $this->updatePerms();
+    }
   }
 
   private function updatePerms(): void
@@ -147,11 +153,19 @@ class Rank extends Component
     $this->swimPlayer->setBasePermission("use.staff", $staff);
   }
 
-  public function setOnlinePlayerRank(int $rank): void
+  // For setting the rank but not updating it in the database. We do this when someone buys a rank on tebex, and they are already online.
+  // Tebex has already updated their rank in the database, and since they are online we can just set the rank directly in server game memory for their session.
+  public function setTempRank(int $rank): void
   {
     $this->rank = $rank;
     $this->swimPlayer->sendMessage(TextFormat::GREEN . "Your Rank has been Updated to " . self::getRankNameString($rank));
     $this->updatePerms();
+  }
+
+  // runs the temp rank function to set the rank in game server memory, then hits the database
+  public function setOnlinePlayerRank(int $rank): void
+  {
+    $this->setTempRank($rank);
     self::insertUpdateRankInDatabase($this->swimPlayer->getXuid(), $this->swimPlayer->getName(), $rank);
   }
 
@@ -176,11 +190,15 @@ class Rank extends Component
     }, null);
   }
 
-  // set the player's score tag to be of their rank
+  // set the player's score tag to be of their rank (none if nicked)
   public function rankScoreTag(): void
   {
-    $rankStr = self::getRankNameString($this->rank);
-    $this->swimPlayer->setScoreTag($rankStr);
+    if ($this->rank > 0 && !$this->swimPlayer->getNicks()->isNicked()) {
+      $rankStr = self::getRankNameString($this->rank);
+      $this->swimPlayer->setScoreTag(TextFormat::GRAY . "(" . $rankStr . TextFormat::GRAY . ")");
+    } else {
+      $this->swimPlayer->setScoreTag(""); // no score tag is set if no rank
+    }
   }
 
   // set the player's name tag
@@ -198,7 +216,7 @@ class Rank extends Component
   // send a message in the format from being sent by a player
   public function rankChatFormat(string $message): string
   {
-    return $this->rankString() . TextFormat::GRAY . " » " . TextFormat::WHITE . $message;
+    return $this->rankString() . $this->swimPlayer->getCosmetics()->formatTag() . TextFormat::GRAY . " » " . TextFormat::WHITE . $message;
   }
 
   // return the rank string of a player
@@ -208,8 +226,8 @@ class Rank extends Component
       return TextFormat::GRAY . $this->swimPlayer->getNicks()->getNick();
     }
     $rankStr = TextFormat::GRAY . "[" . self::getRankNameString($this->rank) . TextFormat::GRAY . "]";
-    return $rankStr . " " . TextFormat::GREEN . $this->swimPlayer->getName();
-    // return $rankStr . $this->swimPlayer->getCosmetics()->getNameColor() . " " . $this->swimPlayer->getName(); // should have cosmetics getChatColor()
+    // $rankStr = TextFormat::GRAY . "[" . self::getRankAbbreviationString($this->rank) . TextFormat::GRAY . "]";
+    return $rankStr . $this->swimPlayer->getCosmetics()->getNameColor() . " " . $this->swimPlayer->getName(); // should have cosmetics getChatColor()
   }
 
 }

@@ -3,7 +3,6 @@
 namespace core\scenes\ffas;
 
 use core\scenes\PvP;
-use core\systems\player\components\Rank;
 use core\systems\player\SwimPlayer;
 use core\utils\CoolAnimations;
 use core\utils\InventoryUtil;
@@ -19,7 +18,7 @@ use pocketmine\world\Position;
 /**
  * You MUST implement a constructor for FFA derived classes, as that is where the world is set
  */
-class FFA extends PvP
+abstract class FFA extends PvP
 {
 
   protected int $x;
@@ -29,6 +28,12 @@ class FFA extends PvP
 
   protected bool $interruptAllowed = true;
   protected bool $respawnInArena = false; // by default warps back to hub, if true then warps back to arena
+
+  // all FFA scenes autoload and are persistent
+  public static function AutoLoad(): bool
+  {
+    return true;
+  }
 
   public function init(): void
   {
@@ -81,11 +86,13 @@ class FFA extends PvP
   protected function defaultDeathHandle(?SwimPlayer $attacker, SwimPlayer $victim): void
   {
     // cancel cool downs for the attacker since we just re-kitted them
-    $attacker?->getCoolDowns()->clearAll();
-    $kills = $attacker?->getAttributes()?->emplaceIncrementIntegerAttribute("kill streak") ?? 0; // update kill streak
-    if ($kills >= 3) {
-      $name = $attacker->getNicks()->getNick();
-      $this->sceneAnnouncement($name . TextFormat::GREEN . " is on a " . $kills . " Kill Streak!");
+    if ($attacker) {
+      $attacker->getCoolDowns()?->clearAll();
+      $kills = $attacker->getAttributes()?->emplaceIncrementIntegerAttribute("kill streak") ?? 0; // update kill streak
+      if ($kills >= 3) {
+        $name = ($attacker->getCosmetics()?->getNameColor() ?? "") . ($attacker->getNicks()?->getNick() ?? $attacker->getName());
+        $this->sceneAnnouncement($name . TextFormat::GREEN . " is on a " . $kills . " Kill Streak!");
+      }
     }
 
     // reset the victim inventory and set them to spec
@@ -94,7 +101,7 @@ class FFA extends PvP
     $victim->getAttributes()->setAttribute("kill streak", 0); // reset kill streak
 
     // kill effect
-    CoolAnimations::lightningBolt($victim->getPosition(), $victim->getWorld());
+    // CoolAnimations::lightningBolt($victim->getPosition(), $victim->getWorld());
     CoolAnimations::bloodDeathAnimation($victim->getPosition(), $victim->getWorld());
     CoolAnimations::explodeAnimation($victim->getPosition(), $victim->getWorld());
 
@@ -104,7 +111,7 @@ class FFA extends PvP
         // must use safety checks when scheduling a task that uses a player reference, also check if session data still valid
         if ($victim) {
           if ($victim->isConnected()) {
-            $victim?->getSceneHelper()->setNewScene('Hub');
+            $victim?->getSceneHelper()?->setNewScene('Hub');
           }
         }
       }), 70);
@@ -118,9 +125,9 @@ class FFA extends PvP
     if ($player->getNicks()->isNicked()) {
       $player->setNameTag(TextFormat::GRAY . $player->getNicks()->getNick());
     } else {
-      // $player->getCosmetics()->tagNameTag();
-      $color = Rank::getRankColor($player->getRank()->getRankLevel());
-      $player->setNameTag($color . $player->getName());
+      $player->getCosmetics()->tagNameTag();
+      // $color = Rank::getRankColor($player->getRank()->getRankLevel());
+      // $player->setNameTag($color . $player->getName());
     }
   }
 

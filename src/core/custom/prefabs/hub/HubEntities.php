@@ -2,23 +2,14 @@
 
 namespace core\custom\prefabs\hub;
 
-use core\systems\entity\EntitySystem;
 use core\systems\scene\Scene;
-use core\utils\SwimCoreInstance;
+use core\SwimCoreInstance;
 use pocketmine\entity\Location;
 use pocketmine\world\Position;
 use ReflectionException;
 
 class HubEntities
 {
-
-  /**
-   * @throws ReflectionException
-   */
-  public static function register(EntitySystem $entitySystem): void
-  {
-    $entitySystem->registerCustomEntity(FinnEntity::class, "swim:finn");
-  }
 
   /**
    * @throws ReflectionException

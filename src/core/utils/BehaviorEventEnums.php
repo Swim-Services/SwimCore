@@ -25,5 +25,7 @@ class BehaviorEventEnums
   public const PLAYER_TOGGLE_FLIGHT_EVENT = 17;
   public const DATA_PACKET_RECEIVE_EVENT = 18;
   public const PLAYER_JUMP_EVENT = 19;
+  public const BUCKET_EMPTY_EVENT = 20;
+  public const BUCKET_FILL_EVENT = 21;
 
 }

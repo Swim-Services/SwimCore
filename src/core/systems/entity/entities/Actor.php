@@ -5,8 +5,9 @@ namespace core\systems\entity\entities;
 use core\systems\entity\EntityBehaviorManager;
 use core\systems\player\SwimPlayer;
 use core\systems\scene\Scene;
-use core\utils\SwimCoreInstance;
+use core\SwimCoreInstance;
 use Exception;
+use pocketmine\entity\Attribute;
 use pocketmine\entity\Entity;
 use pocketmine\entity\EntitySizeInfo;
 use pocketmine\entity\Living;
@@ -55,6 +56,8 @@ class Actor extends Living
   private Skin $skin;
   private UuidInterface $uuid;
   private bool $hasServerSidedSkin = false;
+
+  protected bool $anchored = false;
 
   /**
    * @throws ReflectionException
@@ -113,6 +116,21 @@ class Actor extends Living
     $this->close();
   }
 
+  public function addMotion(float $x, float $y, float $z): void
+  {
+    if (!$this->anchored) {
+      parent::addMotion($x, $y, $z);
+    }
+  }
+
+  public function setMotion(Vector3 $motion): bool
+  {
+    if (!$this->anchored) {
+      return parent::setMotion($motion);
+    }
+    return false;
+  }
+
   public static function getNetworkTypeId(): string
   {
     return EntityIds::NPC;
@@ -142,6 +160,9 @@ class Actor extends Living
   public function init(): void
   {
     $this->entityBehaviorManager->init();
+    if ($this->anchored) {
+      $this->getAttributeMap()->add(new Attribute(Attribute::KNOCKBACK_RESISTANCE, 1, 1, 1, true));
+    }
   }
 
   public function updateSecond(): void

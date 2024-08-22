@@ -4,6 +4,7 @@ namespace core\systems\scene\managers;
 
 use core\systems\scene\misc\Team;
 use core\systems\scene\Scene;
+use core\utils\PositionHelper;
 
 class TeamManager
 {
@@ -63,7 +64,7 @@ class TeamManager
   public function getFirstOpposingTeam(Team $team): ?Team
   {
     foreach ($this->teams as $t) {
-      if ($t !== $team) {
+      if ($t !== $team && !$t->isSpecTeam()) {
         return $t;
       }
     }
@@ -127,6 +128,36 @@ class TeamManager
       return $this->teams[$teamName];
     }
     return null;
+  }
+
+  public function lookAtEachOther(): void
+  {
+    /** @var Team[] $validTeams */
+    $validTeams = [];
+
+    // Filter out the spectator team
+    foreach ($this->teams as $team) {
+      if (!$team->isSpecTeam()) {
+        $validTeams[] = $team;
+      }
+    }
+
+    // Ensure we have exactly two valid teams for this
+    if (count($validTeams) == 2) {
+      $team1 = $validTeams[0];
+      $team2 = $validTeams[1];
+
+      $pos1 = $team1->getSpawnPoint(0);
+      $pos2 = $team2->getSpawnPoint(0);
+
+      foreach ($team1->getPlayers() as $player) {
+        $player->teleport($player->getPosition(), PositionHelper::getYawTowards($pos1, $pos2), PositionHelper::getPitchTowards($pos1, $pos2, $player->getEyeHeight()));
+      }
+
+      foreach ($team2->getPlayers() as $player) {
+        $player->teleport($player->getPosition(), PositionHelper::getYawTowards($pos2, $pos1), PositionHelper::getPitchTowards($pos2, $pos1, $player->getEyeHeight()));
+      }
+    }
   }
 
 }

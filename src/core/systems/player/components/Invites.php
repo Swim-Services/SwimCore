@@ -101,6 +101,11 @@ class Invites extends Component
     $this->teamInvites[$team->getID()] = $team;
   }
 
+  public function removeTeamInvite(?EventTeam $team): void
+  {
+    if ($team) unset($this->teamInvites[$team->getID()]);
+  }
+
   public function getDuelInvites(): array
   {
     return $this->duelInvites;

@@ -4,7 +4,7 @@ namespace core\scenes\ffas;
 
 use core\SwimCore;
 use core\systems\player\SwimPlayer;
-use core\Utils\BehaviorEventEnums;
+use core\utils\BehaviorEventEnums;
 use core\utils\InventoryUtil;
 use jackmd\scorefactory\ScoreFactoryException;
 use pocketmine\event\entity\EntityDamageByEntityEvent;

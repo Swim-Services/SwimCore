@@ -3,45 +3,53 @@
 namespace core\listeners;
 
 use core\SwimCore;
+use core\systems\player\components\NetworkStackLatencyHandler;
 use core\systems\player\PlayerSystem;
+use core\systems\player\SwimPlayer;
 use core\systems\SystemManager;
 use Exception;
 use pocketmine\block\BlockTypeIds;
 use pocketmine\entity\animation\ArmSwingAnimation;
-use pocketmine\entity\projectile\Arrow;
 use pocketmine\event\block\BlockBreakEvent;
 use pocketmine\event\block\BlockBurnEvent;
 use pocketmine\event\block\BlockGrowEvent;
 use pocketmine\event\block\BlockMeltEvent;
 use pocketmine\event\block\LeavesDecayEvent;
 use pocketmine\event\entity\EntityDamageEvent;
-use pocketmine\event\entity\ProjectileHitBlockEvent;
 use pocketmine\event\inventory\InventoryTransactionEvent;
 use pocketmine\event\Listener;
 use pocketmine\event\player\PlayerDeathEvent;
 use pocketmine\event\player\PlayerExhaustEvent;
 use pocketmine\event\player\PlayerInteractEvent;
-use pocketmine\event\player\PlayerToggleSwimEvent;
 use pocketmine\event\server\DataPacketReceiveEvent;
 use pocketmine\event\server\DataPacketSendEvent;
+use pocketmine\event\server\QueryRegenerateEvent;
 use pocketmine\inventory\PlayerOffHandInventory;
 use pocketmine\network\mcpe\protocol\AddActorPacket;
 use pocketmine\network\mcpe\protocol\AddPlayerPacket;
 use pocketmine\network\mcpe\protocol\AnimatePacket;
 use pocketmine\network\mcpe\protocol\CraftingDataPacket;
 use pocketmine\network\mcpe\protocol\CreativeContentPacket;
+use pocketmine\network\mcpe\protocol\InventoryTransactionPacket;
 use pocketmine\network\mcpe\protocol\LevelSoundEventPacket;
+use pocketmine\network\mcpe\protocol\MoveActorAbsolutePacket;
+use pocketmine\network\mcpe\protocol\NetworkStackLatencyPacket;
+use pocketmine\network\mcpe\protocol\PlayerAuthInputPacket;
 use pocketmine\network\mcpe\protocol\PlayerListPacket;
 use pocketmine\network\mcpe\protocol\ProtocolInfo;
+use pocketmine\network\mcpe\protocol\RemoveActorPacket;
 use pocketmine\network\mcpe\protocol\ResourcePackStackPacket;
 use pocketmine\network\mcpe\protocol\SetActorDataPacket;
+use pocketmine\network\mcpe\protocol\SetActorMotionPacket;
 use pocketmine\network\mcpe\protocol\SetTimePacket;
 use pocketmine\network\mcpe\protocol\StartGamePacket;
 use pocketmine\network\mcpe\protocol\types\BoolGameRule;
 use pocketmine\network\mcpe\protocol\types\entity\EntityMetadataProperties;
 use pocketmine\network\mcpe\protocol\types\entity\StringMetadataProperty;
 use pocketmine\network\mcpe\protocol\types\Experiments;
+use pocketmine\network\mcpe\protocol\types\inventory\UseItemOnEntityTransactionData;
 use pocketmine\network\mcpe\protocol\types\LevelSoundEvent;
+use pocketmine\network\mcpe\protocol\types\PlayerAuthInputFlags;
 use pocketmine\network\mcpe\protocol\types\resourcepacks\ResourcePackStackEntry;
 use pocketmine\world\World;
 use ReflectionClass;
@@ -94,15 +102,6 @@ class WorldListener implements Listener
   public function onMelt(BlockMeltEvent $event): void
   {
     $event->cancel();
-  }
-
-  // don't want arrows sticking to blocks
-  public function onArrowHitBlock(ProjectileHitBlockEvent $event)
-  {
-    $arrow = $event->getEntity();
-    if ($arrow instanceof Arrow) {
-      $arrow->kill();
-    }
   }
 
   // only cancels door opens in the hub
@@ -185,7 +184,6 @@ class WorldListener implements Listener
   }
   */
 
-  // for cancelling out certain weird things like sign and log edits
   public function onBlockInteract(PlayerInteractEvent $event)
   {
     $player = $event->getPlayer();
@@ -214,16 +212,22 @@ class WorldListener implements Listener
   }
 
   // cancel swimming animation (don't think this works)
+  /*
   public function onSwim(PlayerToggleSwimEvent $event)
   {
     $event->cancel();
   }
+  */
 
   // cancel weird drops
   public function onBlockBreak(BlockBreakEvent $event)
   {
     $id = $event->getBlock()->getTypeId();
-    if ($id == BlockTypeIds::TALL_GRASS || $id == BlockTypeIds::DOUBLE_TALLGRASS || $id == BlockTypeIds::SUNFLOWER || $id == BlockTypeIds::COBWEB) {
+    if ($id == BlockTypeIds::TALL_GRASS
+      || $id == BlockTypeIds::DOUBLE_TALLGRASS
+      || $id == BlockTypeIds::SUNFLOWER
+      || $id == BlockTypeIds::COBWEB
+      || $id == BlockTypeIds::LARGE_FERN) {
       $event->setDrops([]);
     }
   }
@@ -257,6 +261,7 @@ class WorldListener implements Listener
       if ($this->processStartGamePacket($packet, $event, $key)) continue;
       if ($this->processCreativeContentPacket($packet, $event, $key)) continue;
       if ($this->processCraftingPacket($packet, $packets, $key)) continue;
+      $this->processAck($packet, $packets, $event);
     }
 
     $event->setPackets($packets);
@@ -346,6 +351,7 @@ class WorldListener implements Listener
     return false;
   }
 
+  // pass the packets array by reference, so we can modify it
   private function processActorDataPackets($packet, &$packets, $event, $key): bool
   {
     if ($packet instanceof SetActorDataPacket || $packet instanceof AddActorPacket || $packet instanceof AddPlayerPacket) {
@@ -375,5 +381,150 @@ class WorldListener implements Listener
     }
     return false;
   }
+
+  /**
+   * @throws Exception
+   */
+  private function processAck($packet, &$packets, $event): void
+  {
+    // add move actor absolute packets
+    if ($packet instanceof MoveActorAbsolutePacket || $packet instanceof AddActorPacket || $packet instanceof AddPlayerPacket) {
+      $timestamp = NetworkStackLatencyHandler::randomIntNoZeroEnd();
+      $tp = false;
+      if (isset($packet->flags)) {
+        $tp = $packet->flags & MoveActorAbsolutePacket::FLAG_TELEPORT > 0;
+      }
+      foreach ($event->getTargets() as $target) {
+        /** @var SwimPlayer $pl */
+        $pl = $target->getPlayer();
+        $pl->getAckHandler()?->add($packet->actorRuntimeId, $packet->position, $timestamp, $tp);
+      }
+
+      $packets[] = NetworkStackLatencyPacket::create($timestamp * 1000, true);
+    }
+
+    // and then remove from the ack handler if needed
+    if ($packet instanceof RemoveActorPacket) {
+      $timestamp = NetworkStackLatencyHandler::randomIntNoZeroEnd();
+      foreach ($event->getTargets() as $target) {
+        /** @var SwimPlayer $pl */
+        $pl = $target->getPlayer();
+        $pl->getAckHandler()?->addRemoval($packet->actorUniqueId, $timestamp);
+      }
+      $packets[] = NetworkStackLatencyPacket::create($timestamp * 1000, true);
+    }
+
+    // add motion if needed
+    if ($packet instanceof SetActorMotionPacket) {
+      $timestamp = NetworkStackLatencyHandler::randomIntNoZeroEnd();
+      foreach ($event->getTargets() as $target) {
+        /** @var SwimPlayer $pl */
+        $pl = $target->getPlayer();
+        if ($pl->getId() != $packet->actorRuntimeId) continue;
+        $pl->getAckHandler()?->addKb($packet->motion, $timestamp);
+        $pl->getNetworkSession()->sendDataPacket(NetworkStackLatencyPacket::create($timestamp, true));
+      }
+    }
+  }
+
+  /**
+   * @priority LOWEST
+   * @brief main heart beat listener for what would be the anti cheat.
+   * Instead for simplicity some hardcoded in function calls for gameplay related things the anticheat might do.
+   * Such as DC prevent and auto sprint handling based on user settings.
+   */
+  public function onPacketReceive(DataPacketReceiveEvent $event)
+  {
+    /* @var SwimPlayer $player */
+    $player = $event->getOrigin()->getPlayer();
+    if (!isset($player)) return;
+
+    $this->processNSL($event, $player); // update the network stack latency component for the player
+    $this->handleInput($event, $player); // update player info based on input
+    // $this->processSwing($event, $player); // when player swings there fist (left click)
+  }
+
+  private function processNSL(DataPacketReceiveEvent $event, SwimPlayer $player): void
+  {
+    $pk = $event->getPacket();
+    if ($pk instanceof NetworkStackLatencyPacket) {
+      if (!$player->getAckHandler()->receive($pk)) $player->getNslHandler()->onNsl($pk); // if receive returns false then call onNsl
+    }
+  }
+
+  private function handleInput(DataPacketReceiveEvent $event, SwimPlayer $swimPlayer): void
+  {
+    $packet = $event->getPacket();
+    if (!($packet instanceof PlayerAuthInputPacket)) return;
+
+    $swimPlayer->setExactPosition($packet->getPosition()->subtract(0, 1.62, 0)); // I don't know what the point of exact position is, something from GameParrot
+
+    // auto sprint
+    $settings = $swimPlayer->getSettings();
+    if ($settings) {
+      if ($settings->isAutoSprint()) {
+        if ($packet->getMoveVecZ() > 0.5) {
+          $swimPlayer->setSprinting();
+        } else {
+          $swimPlayer->setSprinting(false);
+        }
+      }
+    }
+  }
+
+  /* commented out since needs anticheat data which is not provided in the SwimCore public release, but shows how to do DC prevent logic
+  private function processSwing(DataPacketReceiveEvent $event, SwimPlayer $swimPlayer): void
+  {
+    $packet = $event->getPacket();
+    $swung = false;
+
+    if ($packet instanceof PlayerAuthInputPacket) {
+      $swung = (($packet->getInputFlags() & (1 << PlayerAuthInputFlags::MISSED_SWING)) !== 0);
+    }
+
+    if ($packet instanceof LevelSoundEventPacket) {
+      $swung = $packet->sound == LevelSoundEvent::ATTACK_NODAMAGE;
+    }
+
+    if ($swung || ($packet instanceof InventoryTransactionPacket && $packet->trData instanceof UseItemOnEntityTransactionData)) {
+      $ch = $swimPlayer->getClickHandler();
+      if ($ch) {
+
+        $isRanked = $swimPlayer->getSceneHelper()?->getScene()->isRanked() ?? false;
+
+        // dc prevent logic if enabled or in a ranked scene
+        $settings = $swimPlayer->getSettings();
+        if ($isRanked || ($settings?->dcPreventOn())) {
+          if (((microtime(true) * 1000) - ($swimPlayer->getAntiCheatData()->getData(AcData::LAST_CLICK_TIME) ?? 0)) < $this->threshold) {
+            $event->cancel(); // block the swing
+          } else {
+            $swimPlayer->getAntiCheatData()->setData(AcData::LAST_CLICK_TIME, microtime(true) * 1000);
+          }
+        }
+
+        // if dc prevent didn't cancel the click then we can call it
+        if (!$event->isCancelled()) {
+          $ch->click();
+        }
+
+        // only does this notification in ranked marked scenes
+        if ($isRanked && $ch->getCPS() > ClickHandler::CPS_MAX) {
+          $msg = TF::RED . "Clicked above " . TF::YELLOW . ClickHandler::CPS_MAX . TF::RED . " CPS" . self::$spacer . TF::YELLOW . "Attacks will deal Less KB";
+          $swimPlayer->sendActionBarMessage($msg);
+        }
+      }
+    }
+  }
+  */
+
+  /* Region and cross server query stuff is not in SwimCore public release, but leaving this commented out to show how to do this in a psuedo way.
+  public function onQueryRegenerate(QueryRegenerateEvent $ev)
+  {
+    if (!$this->core->getRegionInfo()->isHub) return;
+    $count = $this->core->getRegionPlayerCounts()->getTotalPlayerCount() + count($this->core->getServer()->getOnlinePlayers());
+    $ev->getQueryInfo()->setPlayerCount($count);
+    $ev->getQueryInfo()->setMaxPlayerCount($count + 1);
+  }
+  */
 
 }

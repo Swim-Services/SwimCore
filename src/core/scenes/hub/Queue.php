@@ -2,21 +2,27 @@
 
 namespace core\scenes\hub;
 
+use core\custom\behaviors\player_event_behaviors\MaxDistance;
 use core\custom\prefabs\hub\HubEntities;
+use core\scenes\duel\BattleRush;
+use core\scenes\duel\BedFight;
 use core\scenes\duel\Boxing;
+use core\scenes\duel\Bridge;
+use core\scenes\duel\BUHC;
 use core\scenes\duel\Duel;
 use core\scenes\duel\Midfight;
 use core\scenes\duel\Nodebuff;
+use core\scenes\duel\Skywars;
+use core\SwimCore;
 use core\systems\map\MapsData;
 use core\systems\player\SwimPlayer;
 use core\systems\scene\misc\Team;
 use core\systems\scene\Scene;
-use core\Utils\BehaviorEventEnums;
+use core\utils\BehaviorEventEnums;
 use core\utils\PositionHelper;
 use core\utils\TimeHelper;
 use jackmd\scorefactory\ScoreFactory;
 use jackmd\scorefactory\ScoreFactoryException;
-use JsonException;
 use pocketmine\block\utils\DyeColor;
 use pocketmine\event\player\PlayerItemUseEvent;
 use pocketmine\item\VanillaItems;
@@ -33,6 +39,11 @@ class Queue extends Scene
   private MapsData $mapsData;
   private ?World $duelWorld;
   private ?World $miscWorld; // bridge, bed fight, battle rush
+
+  public static function AutoLoad(): bool
+  {
+    return true;
+  }
 
   /**
    * @throws ReflectionException
@@ -73,13 +84,17 @@ class Queue extends Scene
   }
 
   /**
-   * @throws ScoreFactoryException|JsonException
+   * @throws ScoreFactoryException
    */
   private function checkQueues(): void
   {
     foreach ($this->teamManager->getTeams() as $team) {
-      if ($team->getTeamSize() >= 2) {
-        $this->startDuel($team);
+      $size = $team->getTeamSize();
+      if ($size >= 2 || (SwimCore::$DEBUG && $size >= 1)) { // can self queue in debug mode
+        // we can start the duel if the mode has an available map
+        if ($this->mapsData->modeHasAvailableMap($team->getTeamName())) {
+          $this->startDuel($team);
+        }
       }
     }
   }
@@ -88,18 +103,20 @@ class Queue extends Scene
   {
     return match ($mode) {
       default => $this->duelWorld,
-      'bridge', 'bedfight', 'battlerush' => $this->miscWorld
+      'bridge', 'bedfight', 'battlerush', => $this->miscWorld
     };
   }
 
   /**
    * @throws ScoreFactoryException
-   * @throws JsonException
    */
   private function startDuel(Team $team): void
   {
     $players = $team->getFirstTwoPlayers();
-    if (isset($players[0]) && isset($players[1])) {
+
+    if (SwimCore::$DEBUG && isset($players[0])) { // in debug, you can queue your self to solo test games
+      $this->publicDuelStart($players[0], $players[0], $team->getTeamName());
+    } elseif (isset($players[0]) && isset($players[1])) {
       $this->publicDuelStart($players[0], $players[1], $team->getTeamName());
     }
   }
@@ -117,7 +134,7 @@ class Queue extends Scene
   }
 
   /**
-   * @throws ScoreFactoryException|JsonException
+   * @throws ScoreFactoryException
    */
   public function publicDuelStart(SwimPlayer $playerOne, SwimPlayer $playerTwo, string $mode, string $mapName = 'random'): void
   {
@@ -125,6 +142,11 @@ class Queue extends Scene
     $nameOne = $playerOne->getNicks()->getNick();
     $nameTwo = $playerTwo->getNicks()->getNick();
     $duelName = $mode . ': ' . $nameOne . ' vs ' . $nameTwo;
+
+    // unique team 2 name when in debug
+    if (SwimCore::$DEBUG) {
+      $nameTwo .= " Debug";
+    }
 
     // make the correct duel type
     $duel = $this->makeDuelSceneFromMode($mode, $duelName);
@@ -170,10 +192,11 @@ class Queue extends Scene
 
     // warp in physically
     $duel->warpPlayersIn();
+    if (SwimCore::$DEBUG) $duel->dumpDuel();
   }
 
   /**
-   * @throws ScoreFactoryException|JsonException
+   * @throws ScoreFactoryException
    */
   public function updateSecond(): void
   {
@@ -212,11 +235,13 @@ class Queue extends Scene
         ScoreFactory::setScoreLine($swimPlayer, 1, "  =============   ");
         ScoreFactory::setScoreLine($swimPlayer, 2, $indent . "§bOnline: §f" . $onlineCount . "§7 / §3" . $maxPlayers . $indent);
         ScoreFactory::setScoreLine($swimPlayer, 3, $indent . "§bPing: §3" . $ping . $indent);
-        ScoreFactory::setScoreLine($swimPlayer, 4, $indent . "§bQueuing: " . $indent);
-        ScoreFactory::setScoreLine($swimPlayer, 5, $indent . "§3" . ucfirst($mode) . $indent);
-        ScoreFactory::setScoreLine($swimPlayer, 6, $indent . "§b" . $time . $indent);
-        ScoreFactory::setScoreLine($swimPlayer, 7, $indent . "§bdiscord.gg/§3swim" . $indent);
-        ScoreFactory::setScoreLine($swimPlayer, 8, "  =============  ");
+        ScoreFactory::setScoreLine($swimPlayer, 4, $indent . "§bQueued: §3" . $this->sceneSystem->getQueuedCount() . $indent);
+        ScoreFactory::setScoreLine($swimPlayer, 5, $indent . "§bIn Duel: §3" . $this->sceneSystem->getInDuelsCount() . $indent);
+        ScoreFactory::setScoreLine($swimPlayer, 6, $indent . "§bQueuing: " . $indent);
+        ScoreFactory::setScoreLine($swimPlayer, 7, $indent . "§3" . ucfirst($mode) . $indent);
+        ScoreFactory::setScoreLine($swimPlayer, 8, $indent . "§b" . $time . $indent);
+        ScoreFactory::setScoreLine($swimPlayer, 9, $indent . "§bdiscord.gg/§3swim" . $indent);
+        ScoreFactory::setScoreLine($swimPlayer, 10, "  =============  ");
         // send lines
         ScoreFactory::sendLines($swimPlayer);
       } catch (ScoreFactoryException $e) {
@@ -227,8 +252,9 @@ class Queue extends Scene
 
   public function playerAdded(SwimPlayer $player): void
   {
+    $player->getEventBehaviorComponentManager()->registerComponent(new MaxDistance("max", $this->core, $player));
     $player->getAttributes()->setAttribute('seconds', 0);
-    // $player->getCosmetics()->refresh();
+    $player->getCosmetics()->refresh();
     $this->queueKit($player);
   }
 
@@ -239,7 +265,7 @@ class Queue extends Scene
   }
 
   /**
-   * @throws ScoreFactoryException|JsonException
+   * @throws ScoreFactoryException
    */
   function sceneItemUseEvent(PlayerItemUseEvent $event, SwimPlayer $swimPlayer): void
   {
@@ -251,9 +277,11 @@ class Queue extends Scene
 
   private function queueTag(SwimPlayer $swimPlayer): void
   {
-    $swimPlayer->genericNameTagHandling();
-    // $swimPlayer->getCosmetics()->tagNameTag();
-    $swimPlayer->setScoreTag(TextFormat::GREEN . "Queuing " . TextFormat::YELLOW . ucfirst($this->getPlayerTeam($swimPlayer)->getTeamName()));
+    // $swimPlayer->genericNameTagHandling();
+    $swimPlayer->getCosmetics()->tagNameTag();
+    $teamName = $this->getPlayerTeam($swimPlayer)?->getTeamName();
+    if (!$teamName) return;
+    $swimPlayer->setScoreTag(TextFormat::GREEN . "Queuing " . TextFormat::YELLOW . ucfirst($teamName));
   }
 
 }

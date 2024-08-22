@@ -20,20 +20,22 @@ class FormSettings
       if ($data !== null) {
 
         // bool settings
-        $settings->setToggle('showCPS', $data[0]);
-        $settings->setToggle('showScoreboard', $data[1]);
-        $settings->setToggle('duelInvites', $data[2]);
-        $settings->setToggle('partyInvites', $data[3]);
-        $settings->setToggle('showCords', $data[4]);
-        $settings->setToggle('showScoreTags', $data[5]);
-        $settings->setToggle('msg', $data[6]);
-        $settings->setToggle('pearl', $data[7]);
-        $settings->setToggle('nhc', $data[8]);
+        $index = -1;
+        $settings->setToggle('showCPS', $data[++$index]);
+        $settings->setToggle('nhc', $data[++$index]);
+        $settings->setToggle('sprint', $data[++$index]);
+        $settings->setToggle('showScoreboard', $data[++$index]);
+        $settings->setToggle('dc', $data[++$index]);
+        $settings->setToggle('duelInvites', $data[++$index]);
+        $settings->setToggle('partyInvites', $data[++$index]);
+        $settings->setToggle('showCords', $data[++$index]);
+        $settings->setToggle('showScoreTags', $data[++$index]);
+        $settings->setToggle('msg', $data[++$index]);
+        $settings->setToggle('pearl', $data[++$index]);
 
         // day time is special because it is a dropdown of options
-        $time = TimeHelper::timeIndexToRaw($data[9]);
+        $time = TimeHelper::timeIndexToRaw($data[++$index]);
         $settings->setToggleInt('personalTime', $time);
-        // var_dump("Chose " . TimeHelper::timeIntToString($data[6]) . " Which raw is " . $time);
 
         $settings->updateSettings();
         $swimPlayer->sendMessage("§aSaved Settings");
@@ -45,17 +47,18 @@ class FormSettings
 
     // bool settings
     $form->addToggle("CPS Counter", $toggles['showCPS']);
+    $form->addToggle("No hurt cam (camera shake must be enabled)", $toggles['nhc']);
+    $form->addToggle("Auto Sprint", $toggles['sprint']);
     $form->addToggle("Show Scoreboard", $toggles['showScoreboard']);
+    $form->addToggle("DC Prevent", $toggles['dc']);
     $form->addToggle("Allow Duel Requests", $toggles['duelInvites']);
     $form->addToggle("Allow Party Invites", $toggles['partyInvites']);
     $form->addToggle("Show Coordinates", $toggles['showCords']);
     $form->addToggle("Show Score Tags", $toggles['showScoreTags']);
     $form->addToggle("Allow Messages", $toggles['msg']);
     $form->addToggle("Animated Pearl TP", $toggles['pearl']);
-    $form->addToggle("No hurt cam (camera shake must be enabled)", $toggles['nhc']);
 
     // misc
-    // var_dump("Time raw from settings is " . $toggles['personalTime']);
     $form->addDropdown("Personal Time", ["sunrise", "day", "noon", "sunset", "midnight"], TimeHelper::getTimeIndex($toggles['personalTime']));
 
     $swimPlayer->sendForm($form);

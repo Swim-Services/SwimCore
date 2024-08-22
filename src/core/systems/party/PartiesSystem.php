@@ -6,7 +6,6 @@ use core\SwimCore;
 use core\systems\player\SwimPlayer;
 use core\systems\System;
 use jackmd\scorefactory\ScoreFactoryException;
-use JsonException;
 use pocketmine\player\Player;
 use pocketmine\utils\TextFormat;
 
@@ -35,14 +34,14 @@ class PartiesSystem extends System
   }
 
   /**
-   * @throws ScoreFactoryException|JsonException
+   * @throws ScoreFactoryException
    * this should maybe be a method of Party
    */
   public function disbandParty(Party $party): void
   {
     foreach ($party->getPlayers() as $player) {
       $player->sendMessage(TextFormat::YELLOW . "The party has been disbanded.");
-      $player->getSceneHelper()->setNewScene("Hub");
+      $player->getSceneHelper()->setNewScene("Hub"); // do we want to do this?
       $player->getSceneHelper()->setParty(null);
     }
     // delete the party
@@ -89,7 +88,6 @@ class PartiesSystem extends System
   // TO DO : make sure to have proper handling for when this happens during a duel
   // this probably currently does not have proper handling
   /**
-   * @throws JsonException
    * @throws ScoreFactoryException
    */
   public function handlePlayerLeave(SwimPlayer $swimPlayer): void

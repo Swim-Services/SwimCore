@@ -20,6 +20,10 @@ class Settings extends Component
 
   private array $toggles;
 
+  // these are class fields because much faster to look up as they are called on every tick almost
+  private bool $dc = false;
+  private bool $sprint = false;
+
   public function __construct(SwimCore $core, SwimPlayer $swimPlayer)
   {
     parent::__construct($core, $swimPlayer);
@@ -32,7 +36,9 @@ class Settings extends Component
       'showScoreTags' => true,
       'msg' => true,
       'pearl' => false, // animated pearl teleport animation
-      'nhc' => false, // animated pearl teleport animation
+      'nhc' => false, // no hurt cam
+      'dc' => false,
+      'sprint' => false,
       'personalTime' => 1000 // default day time
     ];
   }
@@ -60,6 +66,20 @@ class Settings extends Component
     if ($this->getToggleInt('personalTime')) {
       $this->swimPlayer->getNetworkSession()->sendDataPacket(SetTimePacket::create($this->getToggleInt('personalTime') + 2000000000));
     }
+
+    // set our quick booleans
+    $this->dc = $this->getToggle('dc');
+    $this->sprint = $this->getToggle('sprint');
+  }
+
+  public function dcPreventOn(): bool
+  {
+    return $this->dc;
+  }
+
+  public function isAutoSprint(): bool
+  {
+    return $this->sprint;
   }
 
   public function setToggle(string $setting, bool $state): void
@@ -100,11 +120,13 @@ class Settings extends Component
     $msg = $this->getToggleInt('msg');
     $pearl = $this->getToggleInt('pearl');
     $nhc = $this->getToggleInt('nhc');
+    $dc = $this->getToggleInt('dc');
+    $sprint = $this->getToggleInt('sprint');
     $personalTime = $this->getToggleInt('personalTime') ?? 1000;
 
     $query = "
-        INSERT INTO Settings (xuid, showCPS, showScoreboard, duelInvites, partyInvites, showCords, showScoreTags, msg, pearl, nhc, personalTime) 
-        VALUES ('$xuid', '$showCPS', '$showScoreboard', '$duelInvites', '$partyInvites', '$showCords', '$showScoreTags', '$msg', '$pearl', '$nhc', '$personalTime')
+        INSERT INTO Settings (xuid, showCPS, showScoreboard, duelInvites, partyInvites, showCords, showScoreTags, msg, pearl, nhc, dc, sprint, personalTime) 
+        VALUES ('$xuid', '$showCPS', '$showScoreboard', '$duelInvites', '$partyInvites', '$showCords', '$showScoreTags', '$msg', '$pearl', '$nhc', '$dc', '$sprint', '$personalTime')
         ON DUPLICATE KEY UPDATE 
             xuid = '$xuid', 
             showCPS = '$showCPS', 
@@ -116,6 +138,8 @@ class Settings extends Component
             msg = '$msg',
             pearl = '$pearl',
             nhc = '$nhc',
+            dc = '$dc',
+            sprint = '$sprint',
             personalTime = '$personalTime'
     ";
 
@@ -134,33 +158,38 @@ class Settings extends Component
   /**
    * @throws ScoreFactoryException
    */
-  public function loadSettings(): Generator
+  public function load(): Generator
   {
     $xuid = $this->swimPlayer->getXuid();
     $query = "SELECT * FROM Settings WHERE xuid = '$xuid'";
-    // Use Await::f2c outside the executeImplRaw since we are waiting for data
     $rows = yield from Await::promise(fn($resolve, $reject) => SwimDB::getDatabase()->executeImplRaw([0 => $query], [0 => []], [0 => SqlThread::MODE_SELECT], $resolve, $reject));
-    if (isset($rows[0]->getRows()[0])) {
-      $data = $rows[0]->getRows()[0];
-      // if still online then apply the settings cast as booleans into the toggles map
-      if ($this->swimPlayer->isConnected() && $this->swimPlayer->isOnline()) {
-        $this->toggles = [
-          'showCPS' => (bool)$data['showCPS'],
-          'showScoreboard' => (bool)$data['showScoreboard'],
-          'duelInvites' => (bool)$data['duelInvites'],
-          'partyInvites' => (bool)$data['partyInvites'],
-          'showCords' => (bool)$data['showCords'],
-          'showScoreTags' => (bool)$data['showScoreTags'],
-          'msg' => (bool)$data['msg'],
-          'pearl' => (bool)$data['pearl'],
-          'nhc' => (bool)$data['nhc'],
-          'personalTime' => $data['personalTime']
-        ];
+
+    // player must be connected to load data
+    if ($this->swimPlayer->isConnected()) {
+      if (isset($rows[0]->getRows()[0])) {
+        $data = $rows[0]->getRows()[0];
+        // if still online then apply the settings cast as booleans into the toggles map
+        if ($this->swimPlayer->isConnected() && $this->swimPlayer->isOnline()) {
+          $this->toggles = [
+            'showCPS' => (bool)($data['showCPS'] ?? $this->toggles['showCPS']),
+            'showScoreboard' => (bool)($data['showScoreboard'] ?? $this->toggles['showScoreboard']),
+            'duelInvites' => (bool)($data['duelInvites'] ?? $this->toggles['duelInvites']),
+            'partyInvites' => (bool)($data['partyInvites'] ?? $this->toggles['partyInvites']),
+            'showCords' => (bool)($data['showCords'] ?? $this->toggles['showCords']),
+            'showScoreTags' => (bool)($data['showScoreTags'] ?? $this->toggles['showScoreTags']),
+            'msg' => (bool)($data['msg'] ?? $this->toggles['msg']),
+            'pearl' => (bool)($data['pearl'] ?? $this->toggles['pearl']),
+            'nhc' => (bool)($data['nhc'] ?? $this->toggles['nhc']),
+            'dc' => (bool)($data['dc'] ?? $this->toggles['dc']),
+            'sprint' => (bool)($data['sprint'] ?? $this->toggles['sprint']),
+            'personalTime' => $data['personalTime'] ?? $this->toggles['personalTime']
+          ];
+          $this->updateSettings();
+        }
+      } else {
+        $this->saveSettings(); // saving default settings is a way to register them into the database for the first time
         $this->updateSettings();
       }
-    } else {
-      $this->saveSettings(); // saving default settings is a way to register them into the database for the first time
-      $this->updateSettings();
     }
   }
 

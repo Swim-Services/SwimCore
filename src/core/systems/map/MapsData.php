@@ -6,34 +6,50 @@ use core\maps\pool\BasicDuelMaps;
 use core\systems\player\SwimPlayer;
 use core\systems\System;
 
-// in a full server implementation, this is where you would put all your map classes and stuff for bridge and bed fight etc
 class MapsData extends System
 {
 
-  private BasicDuelMaps $basicDuelMaps;
+  private BasicDuelMaps $basicDuelMaps; // used flat basic duel maps for pot, boxing, buhc, etc..
+  private BasicDuelMaps $miscDuelMaps; // unused, but all the OG swim.gg kohi maps are in this
+
+  /** @var MapPool[] */
+  private array $mapPools; // key is duel type as string
 
   public function init(): void
   {
     // basic duels
     $this->basicDuelMaps = new BasicDuelMaps($this->core, "BasicDuelMaps.json");
+    $this->miscDuelMaps = new BasicDuelMaps($this->core, "MiscDuelMaps.json");
+
+    // in a data structure because much more scalable for our getters
+    $this->mapPools = [
+      'basic' => $this->basicDuelMaps,
+      'misc' => $this->miscDuelMaps,
+    ];
   }
 
-  // in a full server implementation this would branch to the different MapInfo classes for each mode
+  public function modeHasAvailableMap(string $mode): bool
+  {
+    if (isset($this->mapPools[$mode])) {
+      return $this->mapPools[$mode]->hasAvailableMap();
+    }
+    return $this->mapPools['basic']->hasAvailableMap();
+  }
+
   public function getRandomMapFromMode(string $mode): ?MapInfo
   {
-    switch ($mode) {
-      default:
-        return $this->basicDuelMaps->getRandomMap();
+    if (isset($this->mapPools[$mode])) {
+      return $this->mapPools[$mode]->getRandomMap();
     }
+    return $this->mapPools['basic']->getRandomMap();
   }
 
-  // in a full server implementation this would branch to the different MapInfo classes for each mode
   public function getNamedMapFromMode(string $mode, string $name): ?MapInfo
   {
-    switch ($mode) {
-      default:
-        return $this->basicDuelMaps->getMapInfoByName($name);
+    if (isset($this->mapPools[$mode])) {
+      return $this->mapPools[$mode]->getMapInfoByName($name);
     }
+    return $this->mapPools['basic']->getMapInfoByName($name);
   }
 
   /**
@@ -42,6 +58,14 @@ class MapsData extends System
   public function getBasicDuelMaps(): BasicDuelMaps
   {
     return $this->basicDuelMaps;
+  }
+
+  /**
+   * @return BasicDuelMaps
+   */
+  public function getMiscDuelMaps(): BasicDuelMaps
+  {
+    return $this->miscDuelMaps;
   }
 
   public function updateTick(): void

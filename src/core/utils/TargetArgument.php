@@ -8,6 +8,12 @@ use pocketmine\network\mcpe\protocol\AvailableCommandsPacket;
 
 class TargetArgument extends BaseArgument
 {
+  private int $length = 1;
+
+	public function __construct(string $name, bool $optional = false, int $length = 1) {
+    $this->length = $length;
+    parent::__construct($name, $optional);
+  }
 
   public function getNetworkType(): int
   {
@@ -23,6 +29,10 @@ class TargetArgument extends BaseArgument
   {
     return true;
   }
+
+  public function getSpanLength(): int {
+		return $this->length;
+	}
 
   public function parse(string $argument, CommandSender $sender): string
   {

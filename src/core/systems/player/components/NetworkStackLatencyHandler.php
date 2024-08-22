@@ -9,11 +9,10 @@ use Exception;
 use pocketmine\network\mcpe\protocol\NetworkStackLatencyPacket;
 use pocketmine\Server;
 
-// this isn't properly used in swim.gg's stripped down version
 class NetworkStackLatencyHandler extends Component
 {
 
-  private const NSL_INTERVAL = 3; // before was 2
+  private const NSL_INTERVAL = 2;
   private const PKS_PER_READING = 50; // before was 75
   private const SUBTRACT_AMOUNT = 5;
 
@@ -70,7 +69,18 @@ class NetworkStackLatencyHandler extends Component
 
   public function getPing(): int
   {
-    return $this->finalPing ?? $this->swimPlayer->getNetworkSession()->getPing() ?? 0;
+    // Get the initial ping value
+    $ping = $this->finalPing ?? $this->swimPlayer->getNetworkSession()->getPing() ?? 0;
+
+    // Generate the random numbers so people stop bitching about their ping being accurate and higher
+    // than other servers even though there is zero difference we just do a different reading method
+    // $randomSubtract = rand(15, 20);
+    // $randomLowerBound = rand(5, 9);
+    $randomSubtract = 20;
+    $randomLowerBound = 5;
+
+    // Subtract the random number and ensure the result does not go below the random lower bound
+    return max($ping - $randomSubtract, $randomLowerBound);
   }
 
   public function getRecentPing(): int

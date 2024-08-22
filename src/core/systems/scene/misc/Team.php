@@ -2,10 +2,12 @@
 
 namespace core\systems\scene\misc;
 
+use core\SwimCore;
 use core\systems\player\SwimPlayer;
 use core\systems\scene\Scene;
 use core\utils\InventoryUtil;
 use core\utils\ServerSounds;
+use core\utils\StackTracer;
 use pocketmine\block\utils\DyeColor;
 use pocketmine\item\VanillaItems;
 use pocketmine\player\GameMode;
@@ -92,6 +94,13 @@ class Team
 
   public function addPlayer(SwimPlayer $swimPlayer, bool $customizeTagColor = true): void
   {
+    if (SwimCore::$DEBUG) {
+      echo("adding " . $swimPlayer->getName() . " to team " . $this->teamName . "\n");
+      if ($this->isSpecTeam()) {
+        StackTracer::PrintStackTrace();
+      }
+    }
+
     $this->players[$swimPlayer->getId()] = $swimPlayer;
     $swimPlayer->getSceneHelper()->setTeamNumber($this->teamID);
 
@@ -156,6 +165,10 @@ class Team
   public function removePlayer(SwimPlayer $swimPlayer): void
   {
     if (isset($this->players[$swimPlayer->getId()])) {
+      if (SwimCore::$DEBUG) {
+        echo("removing " . $swimPlayer->getName() . " from team " . $this->teamName . "\n");
+        StackTracer::PrintStackTrace();
+      }
       unset($this->players[$swimPlayer->getId()]);
       $swimPlayer->getSceneHelper()->setTeamNumber(-1); // sets back to invalid since they aren't in a team anymore anywhere
     }
@@ -244,10 +257,7 @@ class Team
 
   public function getSpawnPoint(int $index): ?Position
   {
-    if (isset($this->spawnPoints[$index])) {
-      return $this->spawnPoints[$index];
-    }
-    return null;
+    return $this->spawnPoints[$index] ?? null;
   }
 
   /**

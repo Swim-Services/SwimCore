@@ -24,6 +24,11 @@ use pocketmine\utils\TextFormat;
 class GodMode extends scene
 {
 
+  public static function AutoLoad(): bool
+  {
+    return true;
+  }
+
   public function init(): void
   {
 

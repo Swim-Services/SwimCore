@@ -106,8 +106,14 @@ abstract class ServerGameEvent
     echo $this->eventName . " event freed\n";
   }
 
+  // just to force this state
+  public function setStarted(): void
+  {
+    $this->started = true;
+  }
+
   // the implementing class must define what happens once the event starts
-  abstract protected function startEvent(): void;
+  abstract public function startEvent(): void;
 
   public function eventCreated(): void
   {
@@ -134,7 +140,6 @@ abstract class ServerGameEvent
   // each second check if required players to start was hit and if so wait for 30 seconds then start
 
   /**
-   * @throws JsonException
    * @throws ScoreFactoryException
    */
   public function updateSecond(): void
@@ -145,7 +150,6 @@ abstract class ServerGameEvent
   }
 
   /**
-   * @throws JsonException
    * @throws ScoreFactoryException
    */
   private function preStartLogic(): void
@@ -181,15 +185,14 @@ abstract class ServerGameEvent
 
   /**
    * @throws ScoreFactoryException
-   * @throws JsonException
    * @breif Removes all players from the event and sends them back to hub
    */
   private function end(): void
   {
     foreach ($this->players as $player) {
       $sh = $player->getSceneHelper();
-      $sh->setEvent(null);
-      $sh->setNewScene("Hub");
+      $sh?->setEvent(null);
+      $sh?->setNewScene("Hub");
     }
 
     $this->exit();
@@ -417,7 +420,7 @@ abstract class ServerGameEvent
   // this updates the player's scene helper for the event they are in
   public function addPlayer(SwimPlayer $swimPlayer): void
   {
-    $swimPlayer->getSceneHelper()->setEvent($this);
+    $swimPlayer->getSceneHelper()?->setEvent($this);
     $this->players[$swimPlayer->getId()] = $swimPlayer;
     $this->createSoloTeam($swimPlayer); // they get put on their own solo team
   }
@@ -433,10 +436,11 @@ abstract class ServerGameEvent
   public function getInvitablePlayers(SwimPlayer $swimPlayer): array
   {
     $selfTeam = $this->getTeamPlayerIsIn($swimPlayer);
+    if (!$selfTeam) return [];
     $players = array();
     foreach ($this->teams as $team) {
       // skip self
-      if ($team->getID() == $selfTeam->getID()) continue;
+      if ($team === $selfTeam) continue;
       // can invite solo team
       if ($team->getCurrentTeamSize() == 1) {
         $players[] = $team->getOwner();
@@ -471,7 +475,6 @@ abstract class ServerGameEvent
   }
 
   /**
-   * @throws JsonException
    * @throws ScoreFactoryException
    */
   public function leave(SwimPlayer $swimPlayer): void
@@ -479,13 +482,13 @@ abstract class ServerGameEvent
     $sh = $swimPlayer->getSceneHelper();
     $this->removePlayer($swimPlayer);
     $this->removeMessage($swimPlayer);
-    $sh->setNewScene("Hub");
+    $sh?->setNewScene("Hub");
   }
 
   public function getTeamPlayerIsIn(SwimPlayer $swimPlayer): ?EventTeam
   {
     // shortcut
-    $id = $swimPlayer->getSceneHelper()->getTeamNumber();
+    $id = $swimPlayer->getSceneHelper()?->getTeamNumber() ?? -1; // this is sus
     if (isset($this->teams[$id])) {
       $t = $this->teams[$id];
       if ($t) return $t;
@@ -507,7 +510,7 @@ abstract class ServerGameEvent
     $this->assignNewHost($swimPlayer);
     // reset back to null (no event)
     $sh = $swimPlayer->getSceneHelper();
-    $sh->setEvent(null);
+    $sh?->setEvent(null);
   }
 
   public function hasPlayer(SwimPlayer $swimPlayer): bool
@@ -526,7 +529,7 @@ abstract class ServerGameEvent
     if (isset($this->players[$swimPlayer->getId()])) {
       unset($this->players[$swimPlayer->getId()]);
       $this->assignNewHost($swimPlayer); // need to check to assign a new host
-      $this->getTeamPlayerIsIn($swimPlayer)->leave($swimPlayer, false);
+      $this->getTeamPlayerIsIn($swimPlayer)?->leave($swimPlayer, false);
       return true;
     }
     return false;
@@ -576,6 +579,16 @@ abstract class ServerGameEvent
   {
     $this->blockedPlayers = [];
     $this->players = [];
+  }
+
+  public function isValidTeam(?EventTeam $team): bool
+  {
+    if ($team) {
+      if (isset($this->teams[$team->getID()])) {
+        return true;
+      }
+    }
+    return false;
   }
 
   public function removeTeam(EventTeam $team): void

@@ -8,13 +8,10 @@ use core\systems\party\PartiesSystem;
 use core\systems\player\PlayerSystem;
 use core\systems\player\SwimPlayer;
 use core\systems\scene\managers\TeamManager;
-use core\systems\scene\misc\SpectatorCompass;
 use core\systems\scene\misc\Team;
 use core\systems\SystemManager;
-use core\Utils\BehaviorEventEnums;
+use core\utils\BehaviorEventEnums;
 use core\utils\ServerSounds;
-use jackmd\scorefactory\ScoreFactoryException;
-use JsonException;
 use pocketmine\entity\Entity;
 use pocketmine\event\block\BlockBreakEvent;
 use pocketmine\event\block\BlockPlaceEvent;
@@ -30,6 +27,8 @@ use pocketmine\event\entity\ProjectileHitEvent;
 use pocketmine\event\entity\ProjectileLaunchEvent;
 use pocketmine\event\Event;
 use pocketmine\event\inventory\InventoryTransactionEvent;
+use pocketmine\event\player\PlayerBucketEmptyEvent;
+use pocketmine\event\player\PlayerBucketFillEvent;
 use pocketmine\event\player\PlayerDropItemEvent;
 use pocketmine\event\player\PlayerInteractEvent;
 use pocketmine\event\player\PlayerItemConsumeEvent;
@@ -39,9 +38,7 @@ use pocketmine\event\player\PlayerToggleFlightEvent;
 use pocketmine\event\server\DataPacketReceiveEvent;
 use pocketmine\network\mcpe\protocol\BossEventPacket;
 use pocketmine\network\mcpe\protocol\types\BossBarColor;
-use pocketmine\player\GameMode;
 use pocketmine\player\Player;
-use pocketmine\utils\TextFormat;
 use pocketmine\world\World;
 
 abstract class Scene
@@ -55,7 +52,7 @@ abstract class Scene
   protected EntitySystem $entitySystem;
 
   /**
-   * @var Event[] Array of events
+   * @var BehaviorEventEnums[] Array of events
    */
   private array $canceledEvents = [];
 
@@ -70,6 +67,8 @@ abstract class Scene
   private int $sceneCreationTimestamp; // the unix timestamp of when the scene is created, used for calculating tick age
   protected bool $isDuel; // if this is a duel or not
   protected bool $ranked; // for ranked and scrim modes
+
+  private int $playerCount = 0;
 
   protected World $world;
 
@@ -90,6 +89,16 @@ abstract class Scene
 
     // make team manager
     $this->teamManager = new TeamManager($this);
+  }
+
+  /**
+   * @breif Override this and have it return true if you want the scene to be automatically loaded and exist right away in the scene system.
+   *        This is done for things like the hub and FFA scenes.
+   * @return bool
+   */
+  public static function AutoLoad(): bool
+  {
+    return false;
   }
 
   /**
@@ -128,7 +137,7 @@ abstract class Scene
   // gets the amount of ticks this scene has been active
   public final function getSceneTickAge(): int
   {
-    return (time() - $this->sceneCreationTimestamp) * 20; // lazy getter
+    return (time() - $this->sceneCreationTimestamp) * 20; // I haven't tested if this is right, and I don't use this function often
   }
 
   // should be an int array of event enums
@@ -208,6 +217,11 @@ abstract class Scene
     return $this->players;
   }
 
+  public final function getPlayerCount(): int
+  {
+    return $this->playerCount;
+  }
+
   // Probably should use scene helper component instead
   public final function isInScene(SwimPlayer $player): bool
   {
@@ -228,6 +242,7 @@ abstract class Scene
 
   public final function addPlayer(SwimPlayer $player, string $team = 'none'): void
   {
+    $this->playerCount++;
     $team = $this->teamManager->getTeam($team);
     $team?->addPlayer($player); // big problem if team does not exist
 
@@ -235,8 +250,11 @@ abstract class Scene
     $this->playerAdded($player);
   }
 
+  // Calls the virtual function the deriving scene class will optionally implement for handling specifics when a player leaves the scene,
+  // and then removes them from their team and the players array.
   public final function removePlayer(SwimPlayer $player): void
   {
+    $this->playerCount--;
     // Called before a player is removed. this is for the processing steps
     $this->playerRemoved($player);
 
@@ -248,28 +266,6 @@ abstract class Scene
     if ($key !== false) {
       unset($this->players[$key]);
     }
-
-    // Then handle what to do after full removal from a team
-    $this->playerElimination($player);
-  }
-
-  /**
-   * @return bool determining if we did an action or not
-   * @throws ScoreFactoryException|JsonException
-   */
-  protected final function spectatorControls(PlayerItemUseEvent $event, SwimPlayer $swimPlayer): bool
-  {
-    if ($swimPlayer->getGamemode() == GameMode::SPECTATOR) {
-      $itemName = $event->getItem()->getCustomName();
-      if ($itemName == TextFormat::RED . "Leave") {
-        $swimPlayer->getSceneHelper()->setNewScene('Hub');
-        $swimPlayer->sendMessage("§7Teleporting to hub...");
-        $this->sceneAnnouncement(TextFormat::AQUA . $swimPlayer->getNicks()->getNick() . " Stopped Spectating");
-        return true;
-      }
-    }
-
-    return false;
   }
 
   public final function sceneAnnouncement(string $msg): void
@@ -317,12 +313,6 @@ abstract class Scene
     }
   }
 
-  // can optionally be overridden, also intended for when a player suddenly hubs or leaves the server
-  public function playerElimination(SwimPlayer $swimPlayer): void
-  {
-    // no op default
-  }
-
   // what happens when a player is added
   public function playerAdded(SwimPlayer $player): void
   {
@@ -357,14 +347,9 @@ abstract class Scene
     $this->cancelCheck(BehaviorEventEnums::PLAYER_DROP_ITEM_EVENT, $event);
   }
 
-  /**
-   * @throws ScoreFactoryException|JsonException
-   */
   public function sceneItemUseEvent(PlayerItemUseEvent $event, SwimPlayer $swimPlayer): void
   {
-    if (!$this->spectatorControls($event, $swimPlayer)) {
-      $this->cancelCheck(BehaviorEventEnums::PLAYER_ITEM_USE_EVENT, $event);
-    }
+    $this->cancelCheck(BehaviorEventEnums::PLAYER_ITEM_USE_EVENT, $event);
   }
 
   public function sceneInventoryUseEvent(InventoryTransactionEvent $event, SwimPlayer $swimPlayer): void
@@ -442,6 +427,16 @@ abstract class Scene
   public function sceneDataPacketReceiveEvent(DataPacketReceiveEvent $event, SwimPlayer $swimPlayer): void
   {
     // optional override (like the rest, just not cancel checked)
+  }
+
+  public function sceneBucketEmptyEvent(PlayerBucketEmptyEvent $event, SwimPlayer $sp): void
+  {
+    $this->cancelCheck(BehaviorEventEnums::BUCKET_EMPTY_EVENT, $event);
+  }
+
+  public function sceneBucketFillEvent(PlayerBucketFillEvent $event, SwimPlayer $sp): void
+  {
+    $this->cancelCheck(BehaviorEventEnums::BUCKET_FILL_EVENT, $event);
   }
 
 }

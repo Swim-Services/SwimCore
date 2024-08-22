@@ -22,7 +22,7 @@ class SystemUpdateTask extends Task
     $this->core = $core;
     $this->systemManager = $this->core->getSystemManager();
     $this->tps = $this->core->getServer()->getTicksPerSecond();
-    var_dump("Running server updates at " . $this->tps . " TPS");
+    echo "Running server updates at " . $this->tps . " TPS\n";
   }
 
   public function onRun(): void

@@ -11,7 +11,6 @@ use core\systems\player\SwimPlayer;
 use jackmd\scorefactory\ScoreFactoryException;
 use jojoe77777\FormAPI\CustomForm;
 use jojoe77777\FormAPI\SimpleForm;
-use JsonException;
 use pocketmine\utils\TextFormat;
 
 /* this class will have 4 forms
@@ -66,9 +65,14 @@ class FormDuelRequests
         $sender = $senders[$data];
         $senderPlayer = $core->getServer()->getPlayerExact($sender);
         if ($senderPlayer instanceof SwimPlayer) {
-          // check if this sender is in the hub
+          // check if this sender is in the hub and the mode has an available map
+          $inviteData = $buttons[$sender];
           if ($senderPlayer->getSceneHelper()->getScene()->getSceneName() === "Hub") {
-            self::startDuel($core, $senderPlayer, $player, $buttons[$sender]);
+            if ($core->getSystemManager()->getMapsData()->modeHasAvailableMap($inviteData['mode'])) {
+              self::startDuel($core, $senderPlayer, $player, $inviteData);
+            } else {
+              $player->sendMessage(TextFormat::RED . "No map is currently available for that mode, try again later");
+            }
             return;
           }
         }
@@ -91,7 +95,7 @@ class FormDuelRequests
   }
 
   /**
-   * @throws ScoreFactoryException|JsonException
+   * @throws ScoreFactoryException
    */
   private static function startDuel(SwimCore $core, SwimPlayer $user, SwimPlayer $inviter, $inviteData): void
   {

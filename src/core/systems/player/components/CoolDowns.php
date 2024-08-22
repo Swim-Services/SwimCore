@@ -37,6 +37,7 @@ class CoolDowns extends Component
 
   public function updateCoolDowns(): void
   {
+    if (!$this->swimPlayer->isConnected()) return;
     foreach ($this->coolDowns as $itemId => &$coolDown) {
       $coolDown[self::TIME] -= 0.05;
       if ($coolDown[self::TIME] <= 0) {
@@ -45,12 +46,12 @@ class CoolDowns extends Component
         }
         unset($this->coolDowns[$itemId]);
         if ($this->focusedItemID == $itemId) {
-          $this->swimPlayer->getXpManager()->setXpAndProgress(0, 0);
+          $this->swimPlayer->getXpManager()?->setXpAndProgress(0, 0);
           $this->focusedItemID = -69420; // back to unreachable ID
         }
       } elseif ($this->focusedItemID == $itemId) {
         $percent = $coolDown[self::TIME] / $this->focusedMaxTime;
-        $this->swimPlayer->getXpManager()->setXpAndProgress(ceil($coolDown[self::TIME]), $percent);
+        $this->swimPlayer->getXpManager()?->setXpAndProgress(ceil($coolDown[self::TIME]), $percent);
       }
     }
   }
@@ -77,9 +78,10 @@ class CoolDowns extends Component
 
   public function clearAll(): void
   {
+    if (!$this->swimPlayer->isConnected()) return;
     $this->coolDowns = [];
     $this->focusedItemID = -69420;
-    $this->swimPlayer->getXpManager()->setXpAndProgress(0, 0);
+    $this->swimPlayer->getXpManager()?->setXpAndProgress(0, 0);
   }
 
   public function clear(): void

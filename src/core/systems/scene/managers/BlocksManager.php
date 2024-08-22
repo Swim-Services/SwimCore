@@ -8,8 +8,12 @@ use core\utils\TimeHelper;
 use pocketmine\block\Block;
 use pocketmine\block\VanillaBlocks;
 use pocketmine\event\block\BlockBreakEvent;
+use pocketmine\event\block\BlockFormEvent;
 use pocketmine\event\block\BlockPlaceEvent;
+use pocketmine\event\block\BlockSpreadEvent;
+use pocketmine\event\player\PlayerBucketEmptyEvent;
 use pocketmine\math\Vector3;
+use pocketmine\Server;
 use pocketmine\world\World;
 
 class BlocksManager
@@ -47,6 +51,7 @@ class BlocksManager
   private const BLOCK = 1;
 
   private SwimCore $core;
+  private Server $server;
 
   public function __construct
   (
@@ -59,6 +64,7 @@ class BlocksManager
   )
   {
     $this->core = $core;
+    $this->server = $this->core->getServer();
     $this->world = $world;
     $this->placedBlocks = [];
     $this->brokenMapBlocks = [];
@@ -70,7 +76,7 @@ class BlocksManager
     $this->prunes = $prune;
 
     // how long in ticks for a block to be replaced back to what it was, by default is 5 minutes
-    $this->brokenLifeTime = TimeHelper::secondsToTicks(60 * 5);
+    $this->brokenLifeTime = TimeHelper::minutesToTicks(5);
     $this->placedLifeTime = $this->brokenLifeTime;
   }
 
@@ -182,22 +188,52 @@ class BlocksManager
 
     // get the block
     $block = $event->getBlock();
-    $time = $this->core->getServer()->getTick() + $this->brokenLifeTime;
+    $position = $block->getPosition();
+    $time = $this->server->getTick() + $this->brokenLifeTime;
+
+    // get if the block we broke is a player placed block
+    $inPlacedBlocks = $this->isInPlacedBlocks($position);
 
     // if we can break map blocks, or we can break registered blocks and the block is registered, then we can just log and return
     // checking via state id is kinda sus
     if ($this->canBreakMapBlocks || ($this->canBreakRegisteredBlocks && ($this->allowedToBreak($block->getTypeId()) || $this->allowedToBreak($block->getStateId())))) {
-      $this->addItemToArrayWithVector3Key($this->brokenMapBlocks, $block->getPosition()->asVector3(), [self::BLOCK => $block, self::TIME => $time]);
-      return;
+      if (!$inPlacedBlocks) { // if the block we broke was not in the player placed blocks array, we log it as needs to be replaced since it was part of the map
+        $this->addItemToArrayWithVector3Key($this->brokenMapBlocks, $position, [self::BLOCK => $block, self::TIME => $time]);
+        return;
+      }
     }
 
-    // check if the broken block cords is in the placedBlocks array, meaning it was allowed to be broken since it was also placed by a player
-    if ($this->isInPlacedBlocks($block->getPosition()->asVector3())) {
-      $this->addItemToArrayWithVector3Key($this->brokenMapBlocks, $block->getPosition()->asVector3(), [self::BLOCK => $block, self::TIME => $time]);
-    } else { // if we are not allowed to break this block, cancel the event
+    // if the broken block cords is in the placedBlocks array, that means it was allowed to be broken since it was placed by a player during the match
+    // we check if this is not the case, so we need to cancel it since it's not a player placed block
+    if (!$inPlacedBlocks) {
       $event->cancel();
     }
   }
+
+  public function handleNaturalBlockEvent(BlockFormEvent|BlockSpreadEvent $event): void
+  {
+    $time = $this->server->getTick() + $this->placedLifeTime;
+    $block = $event->getBlock();
+    $this->addItemToArrayWithVector3Key($this->placedBlocks, $block->getPosition(), [self::BLOCK => $block, self::TIME => $time]);
+  }
+
+  public function handleBucketDump(PlayerBucketEmptyEvent $event): void
+  {
+    $time = $this->server->getTick() + $this->placedLifeTime;
+    $blockFace = $event->getBlockFace();
+    $blockClicked = $event->getBlockClicked();
+
+    // Calculate the position offset by 1 in the correct axis determined by the block face
+    $position = $blockClicked->getSide($blockFace)->getPosition();
+
+    // Determine the type of block (water or lava) being placed
+    // $block = $event->getItem()->getTypeId() == ItemTypeIds::WATER_BUCKET ? VanillaBlocks::WATER() : VanillaBlocks::LAVA();
+    $block = $this->world->getBlock($position); // probably fine to just log what is already there
+
+    // Add the block to the placedBlocks array with the calculated position and time
+    $this->addItemToArrayWithVector3Key($this->placedBlocks, $position, [self::BLOCK => $block, self::TIME => $time]);
+  }
+
 
   private function isInPlacedBlocks(Vector3 $vector3): bool
   {
@@ -285,7 +321,7 @@ class BlocksManager
   // place an array of vector3 positions of a single block type
   public function placeBlocks(array $positions, Block $block, bool $log = true): void
   {
-    $time = $this->core->getServer()->getTick();
+    $time = $this->server->getTick();
     foreach ($positions as $pos) {
       $this->world->setBlock($pos, $block);
       if ($log) {
@@ -299,13 +335,15 @@ class BlocksManager
   {
     if (!$this->prunes) return;
 
-    $time = $this->core->getServer()->getTick();
+    $time = $this->server->getTick();
 
     // set back the placed blocks to air
     foreach ($this->placedBlocks as $key => $data) {
       if ($time >= $data[self::TIME]) {
+        /** @var Block $block */
         $block = $data[self::BLOCK];
         $this->world->setBlock($block->getPosition(), VanillaBlocks::AIR());
+        // if (SwimCore::$DEBUG) echo "Removing placed block: " . $block->getName() . "\n";
         unset($this->placedBlocks[$key]);
       }
     }
@@ -313,8 +351,10 @@ class BlocksManager
     // set back the broken map blocks to what they were
     foreach ($this->brokenMapBlocks as $key => $data) {
       if ($time >= $data[self::TIME]) {
+        /** @var Block $block */
         $block = $data[self::BLOCK];
         $this->world->setBlock($block->getPosition(), $block);
+        // if (SwimCore::$DEBUG) echo "Replacing map block: " . $block->getName() . "\n";
         unset($this->brokenMapBlocks[$key]);
       }
     }

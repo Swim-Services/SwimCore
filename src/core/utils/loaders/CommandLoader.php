@@ -1,6 +1,6 @@
 <?php
 
-namespace core\utils;
+namespace core\utils\loaders;
 
 use core\SwimCore;
 use CortexPE\Commando\exception\HookAlreadyRegistered;
@@ -31,15 +31,18 @@ class CommandLoader
     if ($disableVanilla) {
       $this->unloadVanillaCommands();
     }
+
+    // for Commando
     if (!PacketHooker::isRegistered()) {
       PacketHooker::register($this->core);
     }
+
     $this->loadCommands();
   }
 
   public function loadCommands(): void
   {
-    $commandsDir = Path::canonicalize(Path::join(__DIR__, '..', 'commands'));
+    $commandsDir = Path::canonicalize(Path::join(__DIR__, '..', '..', 'commands'));
     $this->registerCommandScriptsRecursively($commandsDir);
   }
 
@@ -73,7 +76,7 @@ class CommandLoader
   // get rid of whisper, clear, me, vanilla banning, kill, etc
   private function unloadVanillaCommands(): void
   {
-    $commandNames = array("kill", "me", "w", "whisper", "clear", "ban");
+    $commandNames = array("kill", "me", "w", "whisper", "clear", "ban", "stop", "kick");
     foreach ($commandNames as $cmd) {
       $this->unregisterCommand($cmd);
     }

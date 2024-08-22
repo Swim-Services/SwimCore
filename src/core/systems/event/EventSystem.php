@@ -35,6 +35,7 @@ class EventSystem extends System
 
   public function eventNameExists(string $eventName): bool
   {
+    // this could probably be a simple isset() check actually
     return in_array($eventName, array_keys($this->inQueueEvents)) || in_array($eventName, array_keys($this->inProgressEvents));
   }
 
@@ -82,7 +83,6 @@ class EventSystem extends System
 
   /**
    * @throws ScoreFactoryException
-   * @throws JsonException
    */
   public function updateSecond(): void
   {
@@ -142,7 +142,6 @@ class EventSystem extends System
   // below here are functions to create and register server events into this system
 
   /**
-   * @throws JsonException
    * @throws ScoreFactoryException
    */
   public function registerEvent(SwimPlayer $swimPlayerHost, ServerGameEvent $event): void

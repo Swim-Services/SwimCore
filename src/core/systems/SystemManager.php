@@ -10,7 +10,7 @@ use core\systems\party\PartiesSystem;
 use core\systems\player\PlayerSystem;
 use core\systems\player\SwimPlayer;
 use core\systems\scene\SceneSystem;
-use JsonException;
+use ReflectionException;
 
 class SystemManager
 {
@@ -63,7 +63,7 @@ class SystemManager
   // create all the systems
 
   /**
-   * @throws JsonException
+   * @throws ReflectionException
    */
   public function init(): void
   {

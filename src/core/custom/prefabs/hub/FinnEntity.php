@@ -23,8 +23,9 @@ class FinnEntity extends Actor
     parent::__construct($location, $parentScene);
     $this->setMaxHealth(999);
     $this->setHasGravity(false);
-    $this->setNameTag(TextFormat::GREEN . "Server Selector");
+    $this->setNameTag(TextFormat::GREEN . "Swimfan72 but real");
     $this->setScale(1);
+    $this->anchored = true;
   }
 
   protected function attackedByPlayer(EntityDamageByEntityEvent $source, SwimPlayer $player)

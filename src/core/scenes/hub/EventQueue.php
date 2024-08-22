@@ -2,6 +2,7 @@
 
 namespace core\scenes\hub;
 
+use core\custom\behaviors\player_event_behaviors\MaxDistance;
 use core\custom\prefabs\hub\HubEntities;
 use core\systems\event\EventForms;
 use core\systems\player\SwimPlayer;
@@ -20,6 +21,11 @@ use ReflectionException;
 
 class EventQueue extends Scene
 {
+
+  public static function AutoLoad(): bool
+  {
+    return true;
+  }
 
   /**
    * @throws ReflectionException
@@ -45,6 +51,7 @@ class EventQueue extends Scene
    */
   public function playerAdded(SwimPlayer $player): void
   {
+    $player->getEventBehaviorComponentManager()->registerComponent(new MaxDistance("max", $this->core, $player));
     $this->restart($player);
   }
 
@@ -53,11 +60,11 @@ class EventQueue extends Scene
    */
   public function restart(SwimPlayer $swimPlayer): void
   {
-    $this->teleportToHub($swimPlayer);
+    // $this->teleportToHub($swimPlayer);
     $this->hubBoard($swimPlayer);
     $this->setHubTags($swimPlayer);
     $swimPlayer->setGamemode(GameMode::ADVENTURE);
-    // $swimPlayer->getCosmetics()->refresh();
+    $swimPlayer->getCosmetics()->refresh();
     self::kit($swimPlayer);
   }
 
@@ -76,6 +83,7 @@ class EventQueue extends Scene
     $inventory->clearAll();
     $event = $player->getSceneHelper()->getEvent();
     $team = $event->getTeamPlayerIsIn($player);
+    if (!$team) return; // if this happens on joining a new team it is because they joined a team that is disbanded or gone
 
     // owner items
     if ($team->isOwner($player)) {
@@ -94,8 +102,8 @@ class EventQueue extends Scene
 
   private function setHubTags(SwimPlayer $swimPlayer): void
   {
-    $swimPlayer->genericNameTagHandling();
-    // $swimPlayer->getCosmetics()->tagNameTag();
+    // $swimPlayer->genericNameTagHandling();
+    $swimPlayer->getCosmetics()->tagNameTag();
 
     $event = $swimPlayer->getSceneHelper()?->getEvent();
     if ($event) {
@@ -123,19 +131,28 @@ class EventQueue extends Scene
   {
     $name = $event->getItem()->getCustomName();
     if ($name == TextFormat::RED . "Leave") {
-      $serverEvent = $swimPlayer->getSceneHelper()->getEvent();
-      $team = $serverEvent->getTeamPlayerIsIn($swimPlayer);
-      EventForms::leaveTeam($swimPlayer, $team);
+      $serverEvent = $swimPlayer->getSceneHelper()?->getEvent();
+      if ($serverEvent) {
+        $team = $serverEvent->getTeamPlayerIsIn($swimPlayer);
+        if ($team)
+          EventForms::leaveTeam($swimPlayer, $team);
+      }
     } else if ($name == TextFormat::GREEN . "Manage Team") {
-      $serverEvent = $swimPlayer->getSceneHelper()->getEvent();
-      $team = $serverEvent->getTeamPlayerIsIn($swimPlayer);
-      EventForms::manageTeam($swimPlayer, $serverEvent, $team);
+      $serverEvent = $swimPlayer->getSceneHelper()?->getEvent();
+      if ($serverEvent) {
+        $team = $serverEvent->getTeamPlayerIsIn($swimPlayer);
+        if ($team)
+          EventForms::manageTeam($swimPlayer, $serverEvent, $team);
+      }
     } else if ($name == TextFormat::YELLOW . "Team Invites") {
       EventForms::viewTeamInvites($swimPlayer);
     } else if ($name == TextFormat::GREEN . "Manage Event") {
       $serverEvent = $swimPlayer->getSceneHelper()->getEvent();
-      $team = $serverEvent->getTeamPlayerIsIn($swimPlayer);
-      EventForms::manageEventForm($swimPlayer, $serverEvent, $team);
+      if ($serverEvent) {
+        $team = $serverEvent->getTeamPlayerIsIn($swimPlayer);
+        if ($team)
+          EventForms::manageEventForm($swimPlayer, $serverEvent, $team);
+      }
     }
   }
 

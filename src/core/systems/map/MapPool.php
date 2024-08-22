@@ -13,6 +13,11 @@ abstract class MapPool
   protected string $mapsFolder;
   protected SwimCore $core;
 
+  /**
+   * @var MapInfo[]
+   */
+  protected array $maps = [];
+
   public function __construct(SwimCore $core, string $mapFile)
   {
     $this->core = $core;
@@ -23,21 +28,28 @@ abstract class MapPool
   }
 
   /**
-   * @var MapInfo[]
-   */
-  protected array $maps = [];
-
-  /**
    * Loads map data. This method needs to be implemented by subclasses.
    */
   abstract protected function loadMapData(): void;
+
+  /**
+   * @return bool
+   * @breif checks if we have any non-active maps in the map pool
+   */
+  public final function hasAvailableMap(): bool
+  {
+    foreach ($this->maps as $map) {
+      if (!$map->mapIsActive()) return true;
+    }
+    return false;
+  }
 
   protected final function readPosition(mixed $data, string $pos): Vector3
   {
     return new Vector3($data[$pos]['x'], $data[$pos]['y'], $data[$pos]['z']);
   }
 
-  public function getMapInfoByName(string $mapName): ?MapInfo
+  public final function getMapInfoByName(string $mapName): ?MapInfo
   {
     return $this->maps[$mapName] ?? null;
   }

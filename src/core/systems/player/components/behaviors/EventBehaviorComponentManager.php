@@ -87,6 +87,17 @@ class EventBehaviorComponentManager
     }
   }
 
+  public function eventMessage(Event $event, string $message, mixed $args = null): void
+  {
+    if (!empty($this->components)) {
+      foreach ($this->components as $component) {
+        if ($component->shouldUpdate()) {
+          $component->eventMessage($event, $message, $args);
+        }
+      }
+    }
+  }
+
   public function event(Event $event, int $eventEnum): void
   {
     if (!empty($this->components)) {

@@ -3,6 +3,7 @@
 namespace core\systems\player;
 
 use core\SwimCore;
+use core\systems\player\components\AckHandler;
 use core\systems\player\components\Attributes;
 use core\systems\player\components\behaviors\EventBehaviorComponent;
 use core\systems\player\components\behaviors\EventBehaviorComponentManager;
@@ -52,6 +53,7 @@ class SwimPlayer extends Player
   private ?NetworkStackLatencyHandler $nslHandler = null;
   private ?Attributes $attributes = null;
   private ?CombatLogger $combatLogger = null;
+  private ?AckHandler $ackHandler = null;
 
   private Vector3 $exactPosition;
 
@@ -94,6 +96,9 @@ class SwimPlayer extends Player
 
     $this->combatLogger = new CombatLogger($core, $this);
     $this->components['combatLogger'] = $this->combatLogger;
+
+    $this->ackHandler = new AckHandler($core, $this, true);
+    $this->components["ackHandler"] = $this->ackHandler;
 
     // then init each component
     foreach ($this->components as $component) {
@@ -169,13 +174,16 @@ class SwimPlayer extends Player
   public function loadData(): void
   {
     Await::f2c(/**
-     * @throws ScoreFactoryException|JsonException
+     * @throws ScoreFactoryException
+     * @throws JsonException
+     * @breif it would be better for component base class to have a load method to override, and we iterate components calling that method
      */ function () {
-      yield from $this->settings->loadSettings();
-      yield from $this->rank->loadRank();
-      // yield from $this->kits->loadKits();
-      // yield from $this->cosmetics->loadData();
-      $this->getSceneHelper()->setNewScene("Hub"); // once done loading data we can put the player into the hub scene
+      if ($this->isConnected())
+        yield from $this->settings->load();
+      if ($this->isConnected())
+        yield from $this->rank->load();
+      if ($this->isConnected())
+        $this->getSceneHelper()->setNewScene("Hub"); // once done loading data we can put the player into the hub scene
     });
   }
 
@@ -185,6 +193,26 @@ class SwimPlayer extends Player
     $this->settings?->saveSettings();
     // $this->kits?->saveKits();
     // $this->cosmetics?->saveData();
+  }
+
+  public function getPitchTowards(Vector3 $target): float
+  {
+    $horizontal = sqrt(($target->x - $this->location->x) ** 2 + ($target->z - $this->location->z) ** 2);
+    $vertical = $target->y - ($this->location->y + $this->getEyeHeight());
+    return -atan2($vertical, $horizontal) / M_PI * 180; //negative is up, positive is down
+  }
+
+  public function getYawTowards(Vector3 $target): float
+  {
+    $xDist = $target->x - $this->location->x;
+    $zDist = $target->z - $this->location->z;
+
+    $yaw = atan2($zDist, $xDist) / M_PI * 180 - 90;
+    if ($yaw < 0) {
+      $yaw += 360.0;
+    }
+
+    return $yaw;
   }
 
   /**
@@ -263,6 +291,8 @@ class SwimPlayer extends Player
    */
   public function cleanPlayerState(): void
   {
+    if (!$this->isConnected()) return;
+
     // clear inventory
     InventoryUtil::fullPlayerReset($this);
     // remove scoreboard
@@ -339,6 +369,11 @@ class SwimPlayer extends Player
   public function getCombatLogger(): ?CombatLogger
   {
     return $this->combatLogger;
+  }
+
+  public function getAckHandler(): ?AckHandler
+  {
+    return $this->ackHandler;
   }
 
   public function getExactPosition(): Vector3

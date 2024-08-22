@@ -2,21 +2,19 @@
 
 namespace core;
 
-use core\custom\prefabs\hub\HubEntities;
 use core\database\SwimDB;
 use core\listeners\PlayerListener;
 use core\listeners\WorldListener;
 use core\systems\SystemManager;
 use core\tasks\RandomMessageTask;
 use core\tasks\SystemUpdateTask;
-use core\utils\CommandLoader;
 use core\utils\config\ConfigMapper;
 use core\utils\config\SwimConfig;
 use core\utils\cordhook\CordHook;
+use core\utils\loaders\CommandLoader;
+use core\utils\loaders\WorldLoader;
 use core\utils\security\IPParse;
 use core\utils\SteveSkin;
-use core\utils\SwimCoreInstance;
-use core\utils\WorldLoader;
 use CortexPE\Commando\exception\HookAlreadyRegistered;
 use JsonException;
 use muqsit\invmenu\InvMenuHandler;
@@ -93,10 +91,6 @@ class SwimCore extends PluginBase
 
     // set up signal handler
     $this->setUpSignalHandler();
-
-    // init our custom entities
-    $entSystem = $this->systemManager->getEntitySystem();
-    HubEntities::register($entSystem);
   }
 
   private function registerTasks(): void

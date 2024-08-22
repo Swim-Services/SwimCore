@@ -2,6 +2,7 @@
 
 namespace core\utils;
 
+use core\systems\player\SwimPlayer;
 use pocketmine\entity\Location;
 use pocketmine\math\Vector3;
 use pocketmine\world\Position;
@@ -82,12 +83,13 @@ class PositionHelper
    * Generates a hashed integer key from 3D coordinates for fast lookup.
    * This treats the coordinates as whole number integers for block position.
    * Uses XOR'd prime numbers on the coordinates.
+   * @brief I am nervous that under immensely large data sets this can have hash collisions.
    * @param Vector3|Position $vector3
    * @return int The hashed key.
    */
   public static function getVectorHashKey(Vector3|Position $vector3): int
   {
-    return ((int)$vector3->x * 73856093) ^ ((int)$vector3->y * 19349663) ^ ((int)$vector3->z * 83492791);
+    return (((int)$vector3->x) * 73856093) ^ (((int)$vector3->y) * 19349663) ^ (((int)$vector3->z) * 83492791);
   }
 
   // returns the position closer to the other position by given amount
@@ -113,14 +115,14 @@ class PositionHelper
     }
 
     // Cache coords
-    $posX = $positionToMove->getX();
-    $posY = $positionToMove->getY();
-    $posZ = $positionToMove->getZ();
+    $posX = $positionToMove->x;
+    $posY = $positionToMove->y;
+    $posZ = $positionToMove->z;
 
     // Calculate the differences in x, y, and z coordinates
-    $diffX = $positionToMoveTowards->getX() - $posX;
-    $diffY = $positionToMoveTowards->getY() - $posY;
-    $diffZ = $positionToMoveTowards->getZ() - $posZ;
+    $diffX = $positionToMoveTowards->x - $posX;
+    $diffY = $positionToMoveTowards->y - $posY;
+    $diffZ = $positionToMoveTowards->z - $posZ;
 
     // Calculate the new coordinates by moving the position closer by the specified amount
     $newX = $posX + $ratio * $diffX;
@@ -133,7 +135,7 @@ class PositionHelper
 
   public static function vecToPos(Vector3 $vector3, World $world): Position
   {
-    return new Position($vector3->getX(), $vector3->getY(), $vector3->getZ(), $world);
+    return new Position($vector3->x, $vector3->y, $vector3->getZ(), $world);
   }
 
   public static function sameXZ(Vector3 $vector3, Vector3 $otherVector3): bool
@@ -158,7 +160,7 @@ class PositionHelper
     return ($dx * $dx) + ($dy * $dy);
   }
 
-  public static function midPoint(Position $position1, Position $position2): Position
+  public static function midPoint(Position $position1, Position $position2): Position // note: maybe this should be vectors instead of positions
   {
     // Calculate the midpoint of the x coordinates
     $midX = ($position1->getX() + $position2->getX()) / 2;
@@ -171,6 +173,85 @@ class PositionHelper
 
     // Return a new Position object representing the midpoint
     return new Position($midX, $midY, $midZ, $position1->getWorld());
+  }
+
+  /**
+   * @param Vector3 $from
+   * @param Vector3 $target
+   * @param float $offsetHeight is usually eye height
+   * @return float
+   */
+  public static function getPitchTowards(Vector3 $from, Vector3 $target, float $offsetHeight = 0): float
+  {
+    $horizontal = sqrt(($target->x - $from->x) ** 2 + ($target->z - $from->z) ** 2);
+    $vertical = $target->y - ($from->y + $offsetHeight);
+    return -atan2($vertical, $horizontal) / M_PI * 180; //negative is up, positive is down
+  }
+
+  public static function getYawTowards(Vector3 $from, Vector3 $target): float
+  {
+    $xDist = $target->x - $from->x;
+    $zDist = $target->z - $from->z;
+
+    $yaw = atan2($zDist, $xDist) / M_PI * 180 - 90;
+    if ($yaw < 0) {
+      $yaw += 360.0;
+    }
+
+    return $yaw;
+  }
+
+  /**
+   * @brief Calculates the average position of a group of players.
+   * @param array $players
+   * @return Vector3
+   */
+  public static function calculateAveragePosition(array $players): Vector3
+  {
+    $x = 0;
+    $y = 0;
+    $z = 0;
+    $count = count($players);
+
+    foreach ($players as $player) {
+      $position = $player->getPosition();
+      $x += $position->getX();
+      $y += $position->getY();
+      $z += $position->getZ();
+    }
+
+    return new Vector3($x / $count, $y / $count, $z / $count);
+  }
+
+  /**
+   * @param Position $position
+   * @return SwimPlayer|null
+   * @brief uses the positions world for iterating all the possible players, null is returned if there are no players in the world
+   */
+  public static function getNearestPlayer(Position $position): ?SwimPlayer
+  {
+    $nearest = 999999999999;
+    $nearestPlayer = null;
+    /** @var SwimPlayer[] $players */
+    $players = $position->getWorld()->getPlayers();
+
+    if (count($players) == 0) return null;
+    if (count($players) == 1 && isset($players[0])) return $players[0];
+
+    foreach ($players as $player) {
+      $distance = $position->distanceSquared($player->getPosition());
+      if ($distance < $nearest || !$nearestPlayer) {
+        $nearestPlayer = $player;
+        $nearest = $distance;
+      }
+    }
+
+    return $nearestPlayer;
+  }
+
+  public static function interpolate(float $float1, float $float2, float $percentage): float
+  {
+    return ($float1 + (($float2 - $float1) * $percentage));
   }
 
 }

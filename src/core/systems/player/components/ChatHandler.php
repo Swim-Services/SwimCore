@@ -18,6 +18,7 @@ class ChatHandler extends Component
   private bool $isMuted;
   private string $muteReason;
   private int $unmuteTime;
+  private string $lastMessagedPlayerName = '';
 
   private static string $adMsg = TextFormat::DARK_AQUA . "Buy a rank on " .
   TextFormat::AQUA . "swim.tebex.io" .
@@ -34,6 +35,25 @@ class ChatHandler extends Component
   public function init(): void
   {
     $this->rank = $this->swimPlayer->getRank();
+  }
+
+  /**
+   * @param string $lastMessagedPlayerName
+   */
+  public function setLastMessagedPlayerName(string $lastMessagedPlayerName): void
+  {
+    $this->lastMessagedPlayerName = $lastMessagedPlayerName;
+  }
+
+  /**
+   * @return SwimPlayer|null
+   * @brief returns the last player that messaged us, used in the /reply command.
+   */
+  public function getLastMessagedPlayer(): ?SwimPlayer
+  {
+    /** @var ?SwimPlayer $player */
+    $player = $this->core->getServer()->getPlayerExact($this->lastMessagedPlayerName);
+    return $player ?? null;
   }
 
   public function setMute(string $reason, int $unmuteTime): void
@@ -84,7 +104,7 @@ class ChatHandler extends Component
   private function sendFormattedMessage(string $message, bool $broadcast): void
   {
     $noColor = str_replace("§", "", $message);
-    $recolored = $this->swimPlayer->getNicks()->isNicked() ? $noColor : Colors::handleMessageColor("white", $noColor);
+    $recolored = $this->swimPlayer->getNicks()->isNicked() ? $noColor : Colors::handleMessageColor($this->swimPlayer->getCosmetics()->getChatFormat(), $noColor);
     $formattedMessage = $this->rank->rankChatFormat($recolored);
     if ($broadcast) {
       Server::getInstance()->broadcastMessage($formattedMessage);

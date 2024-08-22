@@ -140,7 +140,6 @@ class EventTeam
 
   public function attemptInvite(SwimPlayer $inviter, SwimPlayer $swimPlayer): void
   {
-    var_dump("attempted the invite");
     if ($this->hasAlreadyInvited($swimPlayer)) {
       $inviter->sendMessage(TextFormat::YELLOW . "You already invited this player!");
       return;
@@ -174,7 +173,7 @@ class EventTeam
   {
     unset($this->joinRequests[$swimPlayer->getId()]);
     unset($this->outgoingInvites[$swimPlayer->getId()]);
-    $swimPlayer->getInvites()->clearAllInvites();
+    $swimPlayer->getInvites()?->clearAllInvites();
     EventQueue::kit($swimPlayer);
   }
 
@@ -185,7 +184,7 @@ class EventTeam
   public function joined(SwimPlayer $swimPlayer): void
   {
     $this->event->getTeamPlayerIsIn($swimPlayer)?->leave($swimPlayer, false); // remove from their old team
-    $swimPlayer->getSceneHelper()->setTeamNumber($this->id);
+    $swimPlayer->getSceneHelper()?->setTeamNumber($this->id);
     $this->clearPlayerData($swimPlayer);
     $this->currentTeamSize++;
     $size = $this->formatSize();
