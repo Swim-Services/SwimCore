@@ -4,6 +4,7 @@ namespace core\systems\player;
 
 use core\SwimCore;
 use core\systems\player\components\AckHandler;
+use core\systems\player\components\AntiCheatData;
 use core\systems\player\components\Attributes;
 use core\systems\player\components\behaviors\EventBehaviorComponent;
 use core\systems\player\components\behaviors\EventBehaviorComponentManager;
@@ -54,6 +55,7 @@ class SwimPlayer extends Player
   private ?Attributes $attributes = null;
   private ?CombatLogger $combatLogger = null;
   private ?AckHandler $ackHandler = null;
+  private ?AntiCheatData $antiCheatData = null;
 
   private Vector3 $exactPosition;
 
@@ -84,6 +86,9 @@ class SwimPlayer extends Player
 
     $this->sceneHelper = new SceneHelper($core, $this);
     $this->components['sceneHelper'] = $this->sceneHelper;
+
+    $this->antiCheatData = new AntiCheatData($core, $this, true);
+    $this->components['antiCheatData'] = $this->antiCheatData;
 
     $this->settings = new Settings($core, $this);
     $this->components['settings'] = $this->settings;
@@ -374,6 +379,11 @@ class SwimPlayer extends Player
   public function getAckHandler(): ?AckHandler
   {
     return $this->ackHandler;
+  }
+
+  public function getAntiCheatData(): ?AntiCheatData
+  {
+    return $this->antiCheatData;
   }
 
   public function getExactPosition(): Vector3

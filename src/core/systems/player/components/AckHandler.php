@@ -37,7 +37,7 @@ class AckHandler extends Component
 
     if (count($ack) == 2) {
       $data = $this->swimPlayer->getAntiCheatData();
-      $data->setData(AcData::RUN_VELO, true);
+      $data->setData(15, true); // 15 magic number is the enum for RUN_VELO in Swim.gg private which contains the code for the actual anticheat.
       $data->currentMotion = $ack[1];
       unset($this->acks[$ts]);
       return true;

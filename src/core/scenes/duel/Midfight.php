@@ -6,7 +6,7 @@ use core\custom\prefabs\boombox\KnockerBox;
 use core\custom\prefabs\pearl\SwimPearlItem;
 use core\systems\player\SwimPlayer;
 use core\systems\scene\misc\Team;
-use core\Utils\BehaviorEventEnums;
+use core\utils\BehaviorEventEnums;
 use core\utils\CustomDamage;
 use core\utils\InventoryUtil;
 use jackmd\scorefactory\ScoreFactoryException;
@@ -70,9 +70,13 @@ class Midfight extends Duel
     // update attributes for both players
     $attacker->getAttributes()->emplaceIncrementIntegerAttribute("kills");
     $victim->getAttributes()->emplaceIncrementIntegerAttribute("deaths");
+    $victim->getCombatLogger()->clear(); // to fix a bug with final message kills
 
     // check if whole team in spec (dead)
-    $this->teamCheck($team, $this->getPlayerTeam($victim));
+    $victimTeam = $this->getPlayerTeam($victim); // this is awful if it's null
+    if ($victimTeam) {
+      $this->teamCheck($team, $victimTeam);
+    }
   }
 
   /**
@@ -128,6 +132,7 @@ class Midfight extends Duel
   private function kit(int $enum)
   {
     foreach ($this->teamManager->getTeams() as $team) {
+      if ($team->isSpecTeam()) continue; // skip spectators
       foreach ($team->getPlayers() as $player) {
         InventoryUtil::fullPlayerReset($player);
         $player->setGamemode(GameMode::SURVIVAL); // so they can place boom box
@@ -182,8 +187,10 @@ class Midfight extends Duel
         // game title text
         $midfight = TextFormat::BOLD . TextFormat::GRAY . "[" . TextFormat::AQUA . "Midfight" . TextFormat::GRAY . "]" . TextFormat::RESET . " ";
 
-        $this->core->getServer()->broadcastMessage($midfight . TextFormat::GREEN . $attackerName . $attackerString . TextFormat::YELLOW
-          . " Killed " . TextFormat::RED . $loserName . $loserString);
+        $msg = $midfight . TextFormat::GREEN . $attackerName . $attackerString . TextFormat::YELLOW
+          . " Killed " . TextFormat::RED . $loserName . $loserString;
+        $this->core->getSystemManager()->getSceneSystem()->getScene("Hub")?->sceneAnnouncement($msg);
+        $this->sceneAnnouncement($msg);
 
         // then do spectators message
         $this->specMessage();
@@ -204,7 +211,9 @@ class Midfight extends Duel
     }
     $loserTeams = implode(', ', $loserTeamsArray);
 
-    $this->core->getServer()->broadcastMessage($midf . TextFormat::YELLOW . $winnerTeamName . TextFormat::GREEN . " Defeated " . TextFormat::YELLOW . $loserTeams);
+    // $this->core->getServer()->broadcastMessage($midf . TextFormat::YELLOW . $winnerTeamName . TextFormat::GREEN . " Defeated " . TextFormat::YELLOW . $loserTeams);
+    $msg = $midf . TextFormat::YELLOW . $winnerTeamName . TextFormat::GREEN . " Defeated " . TextFormat::YELLOW . $loserTeams;
+    $this->core->getSystemManager()->getSceneSystem()->getScene("Hub")?->sceneAnnouncement($msg);
     $this->specMessage();
   }
 

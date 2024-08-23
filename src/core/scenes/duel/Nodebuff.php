@@ -4,7 +4,7 @@ namespace core\scenes\duel;
 
 use core\systems\player\SwimPlayer;
 use core\systems\scene\misc\Team;
-use core\Utils\BehaviorEventEnums;
+use core\utils\BehaviorEventEnums;
 use core\utils\InventoryUtil;
 use pocketmine\event\entity\EntityDamageByEntityEvent;
 use pocketmine\event\player\PlayerItemUseEvent;
@@ -89,16 +89,14 @@ class Nodebuff extends Duel
         // Determine message based on potion counts and send broadcast message
         if ($attackerPotCount > $this->victimPotCount) {
           $pots = $attackerPotCount - $this->victimPotCount;
-          $this->core->getServer()->broadcastMessage(
-            $nodebuff . TextFormat::GREEN . $attackerName . $attackerPotString . TextFormat::YELLOW .
-            " " . $pots . " Potted " . TextFormat::RED . $loser->getNicks()->getNick() . $victimPotString
-          );
+          $msg = $nodebuff . TextFormat::GREEN . $attackerName . $attackerPotString . TextFormat::YELLOW .
+            " " . $pots . " Potted " . TextFormat::RED . $loser->getNicks()->getNick() . $victimPotString;
         } else {
-          $this->core->getServer()->broadcastMessage(
-            $nodebuff . TextFormat::GREEN . $attackerName . $attackerPotString . TextFormat::YELLOW .
-            " Killed " . TextFormat::RED . $loser->getNicks()->getNick() . $victimPotString
-          );
+          $msg = $nodebuff . TextFormat::GREEN . $attackerName . $attackerPotString . TextFormat::YELLOW .
+            " Killed " . TextFormat::RED . $loser->getNicks()->getNick() . $victimPotString;
         }
+        $this->core->getSystemManager()->getSceneSystem()->getScene("Hub")?->sceneAnnouncement($msg);
+        $this->sceneAnnouncement($msg);
 
         // Handle messages for spectators
         $this->specMessage();
@@ -118,7 +116,9 @@ class Nodebuff extends Duel
     }
     $loserTeams = implode(', ', $loserTeamsArray);
 
-    $this->core->getServer()->broadcastMessage($nodebuff . TextFormat::YELLOW . $winnerTeamName . TextFormat::GREEN . " Defeated " . TextFormat::YELLOW . $loserTeams);
+    $msg = $nodebuff . TextFormat::YELLOW . $winnerTeamName . TextFormat::GREEN . " Defeated " . TextFormat::YELLOW . $loserTeams;
+    $this->core->getSystemManager()->getSceneSystem()->getScene("Hub")?->sceneAnnouncement($msg);
+    $this->sceneAnnouncement($msg);
     $this->specMessage();
   }
 

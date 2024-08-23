@@ -5,7 +5,6 @@ namespace core\listeners;
 use core\database\queries\ConnectionHandler;
 use core\scenes\PvP;
 use core\SwimCore;
-use core\systems\player\components\ClickHandler;
 use core\systems\player\PlayerSystem;
 use core\systems\player\SwimPlayer;
 use core\systems\SystemManager;
@@ -13,7 +12,6 @@ use core\Utils\BehaviorEventEnums;
 use core\utils\InventoryUtil;
 use core\utils\PositionHelper;
 use jackmd\scorefactory\ScoreFactoryException;
-use JsonException;
 use pocketmine\block\BlockTypeIds;
 use pocketmine\event\block\BlockBreakEvent;
 use pocketmine\event\block\BlockFormEvent;
@@ -50,7 +48,6 @@ use pocketmine\network\mcpe\protocol\PlayerAuthInputPacket;
 use pocketmine\network\mcpe\protocol\types\inventory\UseItemOnEntityTransactionData;
 use pocketmine\network\mcpe\protocol\types\LevelSoundEvent;
 use pocketmine\network\mcpe\protocol\types\PlayerAuthInputFlags;
-use pocketmine\utils\TextFormat as TF;
 use pocketmine\world\Position;
 
 class PlayerListener implements Listener
@@ -406,8 +403,7 @@ class PlayerListener implements Listener
     $sp->event($event, BehaviorEventEnums::PLAYER_JUMP_EVENT);
     $sp->getSceneHelper()?->getScene()->scenePlayerJumpEvent($event, $sp);
   }
-
-
+  
   // lag causer possibly, we do need this though but only for behavior components
   public function dataPacketReceiveEvent(DataPacketReceiveEvent $event)
   {
@@ -416,33 +412,6 @@ class PlayerListener implements Listener
       $player->event($event, BehaviorEventEnums::DATA_PACKET_RECEIVE_EVENT); // behavior components like double jump need this, we should optimize this more
       // if ($event->isCancelled()) return;
       // $player->getSceneHelper()?->getScene()->sceneDataPacketReceiveEvent($event, $player); // disabled for performance
-    }
-  }
-
-  /**
-   * @priority LOWEST
-   * @brief Thrown in CPS counter code, in the prod server this is more organized somewhere in the AntiCheat code
-   */
-  public function onPacketReceive(DataPacketReceiveEvent $event)
-  {
-    /* @var SwimPlayer $swimPlayer */
-    $swimPlayer = $event->getOrigin()->getPlayer();
-    if (!isset($swimPlayer)) return;
-
-    $packet = $event->getPacket();
-    $swung = false;
-
-    if ($packet instanceof PlayerAuthInputPacket) {
-      $swung = (($packet->getInputFlags() & (1 << PlayerAuthInputFlags::MISSED_SWING)) !== 0);
-    }
-
-    if ($packet instanceof LevelSoundEventPacket) {
-      $swung = $packet->sound == LevelSoundEvent::ATTACK_NODAMAGE;
-    }
-
-    if ($swung || ($packet instanceof InventoryTransactionPacket && $packet->trData instanceof UseItemOnEntityTransactionData)) {
-      $ch = $swimPlayer->getClickHandler();
-      $ch->click();
     }
   }
 

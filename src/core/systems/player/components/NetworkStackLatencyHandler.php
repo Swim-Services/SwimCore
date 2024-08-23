@@ -69,18 +69,7 @@ class NetworkStackLatencyHandler extends Component
 
   public function getPing(): int
   {
-    // Get the initial ping value
-    $ping = $this->finalPing ?? $this->swimPlayer->getNetworkSession()->getPing() ?? 0;
-
-    // Generate the random numbers so people stop bitching about their ping being accurate and higher
-    // than other servers even though there is zero difference we just do a different reading method
-    // $randomSubtract = rand(15, 20);
-    // $randomLowerBound = rand(5, 9);
-    $randomSubtract = 20;
-    $randomLowerBound = 5;
-
-    // Subtract the random number and ensure the result does not go below the random lower bound
-    return max($ping - $randomSubtract, $randomLowerBound);
+    return $this->finalPing ?? $this->swimPlayer->getNetworkSession()->getPing() ?? 0;
   }
 
   public function getRecentPing(): int

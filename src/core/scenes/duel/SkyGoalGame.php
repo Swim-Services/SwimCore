@@ -19,7 +19,7 @@ use pocketmine\math\Vector3;
 use pocketmine\utils\TextFormat;
 use pocketmine\world\Position;
 
-// for the common logic in a game like bridge or battle rush, this is left in the lightweight engine to show what real prod gameplay scripting looks like
+// for the common logic in a game like bridge or battle rush
 abstract class SkyGoalGame extends Duel
 {
 
@@ -28,6 +28,7 @@ abstract class SkyGoalGame extends Duel
   protected int|float $buildLimitXZ;
   protected Vector3 $midPoint;
   protected bool $clearOnGoal = false;
+  protected bool $noCrits = true;
 
   protected Position $redSpawn;
   protected Position $blueSpawn;
@@ -111,6 +112,7 @@ abstract class SkyGoalGame extends Duel
     $this->blocksManager->handleBlockPlace($event);
   }
 
+  // only does y level, and the X Z checks we do are scuffed
   private function checkBlocksForWater(int|float $x, int|float $y, int|float $z, int $checks = 4): bool
   {
     for ($i = 0; $i < $checks; $i++) {
@@ -118,7 +120,6 @@ abstract class SkyGoalGame extends Duel
     }
     return false;
   }
-
 
   /**
    * @throws ScoreFactoryException
@@ -216,8 +217,11 @@ abstract class SkyGoalGame extends Duel
 
   private function sendTeamBackToSpawnAndFreeze(Team $team, Position $position): void
   {
+    $zero = $team->getSpawnPoint(0);
+    $enemyLocation = $zero->equals($this->redSpawn) ? $this->blueSpawn : $this->redSpawn;
     foreach ($team->getPlayers() as $player) {
-      $player->teleport($position);
+      $height = $player->getEyeHeight();
+      $player->teleport($position, PositionHelper::getYawTowards($zero, $enemyLocation), PositionHelper::getPitchTowards($zero, $enemyLocation, $height));
       $this->applyKit($player);
       $player->setNoClientPredictions(); // no moving
     }
@@ -226,7 +230,9 @@ abstract class SkyGoalGame extends Duel
   protected function playerHit(SwimPlayer $attacker, SwimPlayer $victim, EntityDamageByEntityEvent $event): void
   {
     // apply no critical custom damage
-    CustomDamage::customDamageHandle($event);
+    if ($this->noCrits) {
+      CustomDamage::customDamageHandle($event);
+    }
     // update who last hit them
     $victim->getCombatLogger()->setlastHitBy($attacker);
   }
@@ -234,10 +240,12 @@ abstract class SkyGoalGame extends Duel
   protected function playerKilled(SwimPlayer $attacker, SwimPlayer $victim, EntityDamageByEntityEvent $event): void
   {
     $victimTeam = $this->getPlayerTeam($victim);
-    $this->deathHandle($victim, $victimTeam, $attacker);
+    if ($victimTeam) {
+      $this->deathHandle($victim, $victimTeam, $attacker);
+    }
   }
 
-  protected function playedDiedToMiscDamage(EntityDamageEvent $event, SwimPlayer $swimPlayer): void
+  protected function playerDiedToMiscDamage(EntityDamageEvent $event, SwimPlayer $swimPlayer): void
   {
     $victimTeam = $this->getPlayerTeam($swimPlayer);
     // validate team
@@ -279,7 +287,7 @@ abstract class SkyGoalGame extends Duel
   // does a message and updates the kills count
   private function processKillFromPlayer(SwimPlayer $attacker, SwimPlayer $victim, Team $victimTeam): void
   {
-    $this->sceneAnnouncement($this->getPlayerTeam($attacker)->getTeamColor() . $attacker->getNicks()->getNick() . TextFormat::YELLOW . " killed "
+    $this->sceneAnnouncement(($this->getPlayerTeam($attacker)?->getTeamColor() ?? "") . $attacker->getNicks()->getNick() . TextFormat::YELLOW . " killed "
       . $victimTeam->getTeamColor() . $victim->getNicks()->getNick());
     ServerSounds::playSoundToPlayer($attacker, "random.orb", 2, 1);
 
@@ -288,11 +296,16 @@ abstract class SkyGoalGame extends Duel
 
   private function respawn(SwimPlayer $swimPlayer, Team $team): void
   {
-    if ($team === $this->redTeam) {
-      $swimPlayer->teleport($this->redSpawn);
-    } else {
-      $swimPlayer->teleport($this->blueSpawn);
-    }
+    $height = $swimPlayer->getEyeHeight();
+
+    $spawn = ($team === $this->redTeam) ? $this->redSpawn : $this->blueSpawn;
+    $target = ($team === $this->redTeam) ? $this->blueSpawn : $this->redSpawn;
+
+    $yaw = PositionHelper::getYawTowards($spawn, $target);
+    $pitch = PositionHelper::getPitchTowards($spawn, $target, $height);
+
+    $swimPlayer->teleport($spawn, $yaw, $pitch);
+
     $swimPlayer->getCombatLogger()->reset();
     $this->applyKit($swimPlayer);
   }

@@ -3,6 +3,7 @@
 namespace core\listeners;
 
 use core\SwimCore;
+use core\systems\player\components\ClickHandler;
 use core\systems\player\components\NetworkStackLatencyHandler;
 use core\systems\player\PlayerSystem;
 use core\systems\player\SwimPlayer;
@@ -51,6 +52,7 @@ use pocketmine\network\mcpe\protocol\types\inventory\UseItemOnEntityTransactionD
 use pocketmine\network\mcpe\protocol\types\LevelSoundEvent;
 use pocketmine\network\mcpe\protocol\types\PlayerAuthInputFlags;
 use pocketmine\network\mcpe\protocol\types\resourcepacks\ResourcePackStackEntry;
+use pocketmine\utils\TextFormat as TF;
 use pocketmine\world\World;
 use ReflectionClass;
 use ReflectionException;
@@ -441,7 +443,7 @@ class WorldListener implements Listener
 
     $this->processNSL($event, $player); // update the network stack latency component for the player
     $this->handleInput($event, $player); // update player info based on input
-    // $this->processSwing($event, $player); // when player swings there fist (left click)
+    $this->processSwing($event, $player); // when player swings there fist (left click)
   }
 
   private function processNSL(DataPacketReceiveEvent $event, SwimPlayer $player): void
@@ -472,11 +474,16 @@ class WorldListener implements Listener
     }
   }
 
-  /* commented out since needs anticheat data which is not provided in the SwimCore public release, but shows how to do DC prevent logic
+  private static string $spacer = TF::GRAY . " | " . TF::RED;
+
+  ///* commented out since needs anticheat data which is not provided in the SwimCore public release, but shows how to do DC prevent logic
   private function processSwing(DataPacketReceiveEvent $event, SwimPlayer $swimPlayer): void
   {
     $packet = $event->getPacket();
     $swung = false;
+
+    // enum from swim.gg anticheat code
+    $LAST_CLICK_TIME = 0;
 
     if ($packet instanceof PlayerAuthInputPacket) {
       $swung = (($packet->getInputFlags() & (1 << PlayerAuthInputFlags::MISSED_SWING)) !== 0);
@@ -495,10 +502,10 @@ class WorldListener implements Listener
         // dc prevent logic if enabled or in a ranked scene
         $settings = $swimPlayer->getSettings();
         if ($isRanked || ($settings?->dcPreventOn())) {
-          if (((microtime(true) * 1000) - ($swimPlayer->getAntiCheatData()->getData(AcData::LAST_CLICK_TIME) ?? 0)) < $this->threshold) {
+          if (((microtime(true) * 1000) - ($swimPlayer->getAntiCheatData()->getData($LAST_CLICK_TIME) ?? 0)) < 45) {
             $event->cancel(); // block the swing
           } else {
-            $swimPlayer->getAntiCheatData()->setData(AcData::LAST_CLICK_TIME, microtime(true) * 1000);
+            $swimPlayer->getAntiCheatData()->setData($LAST_CLICK_TIME, microtime(true) * 1000);
           }
         }
 
@@ -515,7 +522,7 @@ class WorldListener implements Listener
       }
     }
   }
-  */
+  //*/
 
   /* Region and cross server query stuff is not in SwimCore public release, but leaving this commented out to show how to do this in a psuedo way.
   public function onQueryRegenerate(QueryRegenerateEvent $ev)

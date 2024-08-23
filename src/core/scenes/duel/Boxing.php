@@ -4,7 +4,7 @@ namespace core\scenes\duel;
 
 use core\systems\player\SwimPlayer;
 use core\systems\scene\misc\Team;
-use core\Utils\BehaviorEventEnums;
+use core\utils\BehaviorEventEnums;
 use core\utils\InventoryUtil;
 use core\utils\TimeHelper;
 use jackmd\scorefactory\ScoreFactory;
@@ -101,9 +101,11 @@ class Boxing extends Duel
 
         $attackerName = $winner->getNicks()->getNick();
         $boxing = TextFormat::BOLD . TextFormat::GRAY . "[" . TextFormat::AQUA . "Boxing" . TextFormat::GRAY . "]" . TextFormat::RESET . " ";
+        $msg = $boxing . TextFormat::GREEN . $attackerName . $attackerString . TextFormat::YELLOW
+          . " Defeated " . TextFormat::RED . $loser->getNicks()->getNick() . $loserString;
 
-        $this->core->getServer()->broadcastMessage($boxing . TextFormat::GREEN . $attackerName . $attackerString . TextFormat::YELLOW
-          . " Defeated " . TextFormat::RED . $loser->getNicks()->getNick() . $loserString);
+        $this->core->getSystemManager()->getSceneSystem()->getScene("Hub")?->sceneAnnouncement($msg);
+        $this->sceneAnnouncement($msg);
         // then do spectators message
         $this->specMessage();
       }
@@ -122,7 +124,10 @@ class Boxing extends Duel
     }
     $loserTeams = implode(', ', $loserTeamsArray);
 
-    $this->core->getServer()->broadcastMessage($boxing . TextFormat::YELLOW . $winnerTeamName . TextFormat::GREEN . " Defeated " . TextFormat::YELLOW . $loserTeams);
+    // $this->core->getServer()->broadcastMessage($boxing . TextFormat::YELLOW . $winnerTeamName . TextFormat::GREEN . " Defeated " . TextFormat::YELLOW . $loserTeams);
+    $msg = $boxing . TextFormat::YELLOW . $winnerTeamName . TextFormat::GREEN . " Defeated " . TextFormat::YELLOW . $loserTeams;
+    $this->core->getSystemManager()->getSceneSystem()->getScene("Hub")?->sceneAnnouncement($msg);
+    $this->sceneAnnouncement($msg);
     $this->specMessage();
   }
 
@@ -161,6 +166,7 @@ class Boxing extends Duel
         $player->refreshScoreboard(TextFormat::AQUA . "Swimgg.club");
 
         $team = $this->getPlayerTeam($player);
+        if (!$team) return;
         if ($team->isSpecTeam()) {
           $this->spectatorBoxingScoreboard($player);
           return;

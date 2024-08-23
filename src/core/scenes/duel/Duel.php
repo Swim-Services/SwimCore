@@ -14,11 +14,11 @@ use core\utils\ServerSounds;
 use core\utils\TimeHelper;
 use jackmd\scorefactory\ScoreFactory;
 use jackmd\scorefactory\ScoreFactoryException;
-use JsonException;
 use pocketmine\entity\Entity;
 use pocketmine\event\entity\EntityDamageByChildEntityEvent;
 use pocketmine\event\entity\EntityDamageByEntityEvent;
 use pocketmine\event\entity\EntityDamageEvent;
+use pocketmine\event\player\PlayerItemUseEvent;
 use pocketmine\player\GameMode;
 use pocketmine\Server;
 use pocketmine\utils\TextFormat;
@@ -77,6 +77,23 @@ abstract class Duel extends PvP
   // duel must provide a path for the icon
   abstract public static function getIcon(): string;
 
+  public function isFinished(): bool
+  {
+    return $this->finished;
+  }
+
+  public function getNonSpecsPlayerCount(): int
+  {
+    $count = 0;
+    foreach ($this->teamManager->getTeams() as $team) {
+      if (!$team->isSpecTeam()) {
+        $count += count($team->getPlayers());
+      }
+    }
+
+    return $count;
+  }
+
   public final function setMap(MapInfo $mapInfo): void
   {
     $this->map = $mapInfo;
@@ -131,6 +148,8 @@ abstract class Duel extends PvP
         $spawnIndex = ($spawnIndex + 1) % $count;
       }
     }
+
+    $this->teamManager->lookAtEachOther();
   }
 
   public function sceneEntityDamageByEntityEvent(EntityDamageByEntityEvent $event, SwimPlayer $swimPlayer): void
@@ -182,7 +201,7 @@ abstract class Duel extends PvP
   }
 
   // attempts to get the last hit by via combat logger
-  protected function playedDiedToMiscDamage(EntityDamageEvent $event, SwimPlayer $swimPlayer): void
+  protected function playerDiedToMiscDamage(EntityDamageEvent $event, SwimPlayer $swimPlayer): void
   {
     $lastHitBy = $swimPlayer->getCombatLogger()->getLastHitBy();
     if (isset($lastHitBy)) {
@@ -211,7 +230,14 @@ abstract class Duel extends PvP
     if ($this->isPartyDuel) {
       $victimStr = $victim->getRank()->rankString();
       $attacker->sendMessage(TextFormat::GREEN . "You Killed " . $victimStr);
-      $this->sceneAnnouncement($attacker->getRank()->rankString() . TextFormat::YELLOW . " Killed " . $victimStr);
+      // $this->sceneAnnouncement($attacker->getRank()->rankString() . TextFormat::YELLOW . " Killed " . $victimStr);
+      $myTeam = $this->getPlayerTeam($attacker);
+      $loserTeam = $this->getPlayerTeam($victim);
+      if ($myTeam && $loserTeam) {
+        $msg = $myTeam->getTeamColor() . $attacker->getNicks()->getNick() . TextFormat::YELLOW
+          . " Killed " . $loserTeam->getTeamColor() . $victim->getNicks()->getNick();
+        $this->sceneAnnouncement($msg);
+      }
     }
     $this->playerFinalKilled($victim);
   }
@@ -227,11 +253,11 @@ abstract class Duel extends PvP
   protected function deathEffect(SwimPlayer $swimPlayer): void
   {
     // kill message cosmetic
-    // $attacker = $swimPlayer->getCombatLogger()->getLastHitBy();
-    // $attacker?->getCosmetics()?->killMessageLogic($swimPlayer);
+    $attacker = $swimPlayer->getCombatLogger()->getLastHitBy();
+    $attacker?->getCosmetics()?->killMessageLogic($swimPlayer);
 
     $pos = $swimPlayer->getPosition();
-    CoolAnimations::lightningBolt($pos, $this->world);
+    // CoolAnimations::lightningBolt($pos, $this->world);
     CoolAnimations::bloodDeathAnimation($pos, $this->world);
     CoolAnimations::explodeAnimation($pos, $this->world);
   }
@@ -244,7 +270,7 @@ abstract class Duel extends PvP
 
   protected function duelNameTag(SwimPlayer $swimPlayer): void
   {
-    $swimPlayer->setNameTag($this->getPlayerTeam($swimPlayer)->getTeamColor() . $swimPlayer->getNicks()->getNick());
+    $swimPlayer->setNameTag(($this->getPlayerTeam($swimPlayer)?->getTeamColor() ?? "") . $swimPlayer->getNicks()->getNick());
   }
 
   // optional override
@@ -274,7 +300,7 @@ abstract class Duel extends PvP
     // define starting lines
     ScoreFactory::setScoreLine($player, 1, "  =============   ");
     ScoreFactory::setScoreLine($player, 2, $indent . "§bPing: §3" . $ping . $indent);
-    ScoreFactory::setScoreLine($player, 3, $indent . "§b" . $time . $indent);
+    ScoreFactory::setScoreLine($player, 3, $indent . "§bTime: §3" . $time . $indent);
     return $indent;
   }
 
@@ -322,14 +348,31 @@ abstract class Duel extends PvP
   /**
    * @throws ScoreFactoryException
    */
+  protected function duelScoreboardWithScoreSpectator(SwimPlayer $player): void
+  {
+    $indent = $this->startDuelScoreBoardAndGetIndent($player);
+    $line = 4;
+    // Now iterate all the other teams and paste in their scores underneath with their team color
+    foreach ($this->teamManager->getTeams() as $team) {
+      if ($team->isSpecTeam()) continue; // skip spectator teams
+      ScoreFactory::setScoreLine($player, ++$line, $indent . $team->getFormattedScore() . $indent); // place the line for the other team's score
+    }
+
+    // Send all lines to scoreboard
+    $this->submitScoreboardWithBottomFromLine($player, ++$line);
+  }
+
+  /**
+   * @throws ScoreFactoryException
+   */
   protected function duelScoreboardWithScore(SwimPlayer $player): void
   {
     if ($player->isScoreboardEnabled()) {
       try {
         $myTeam = $this->getPlayerTeam($player);
         // if no team then use default duel board (suggest creating a neutral all-scores view instead)
-        if ($myTeam === null) {
-          $this->duelScoreboard($player);
+        if ($myTeam === null || $myTeam->isSpecTeam()) { // this is sus because how would your team be null?
+          $this->duelScoreboardWithScoreSpectator($player);
           return;
         }
 
@@ -342,16 +385,10 @@ abstract class Duel extends PvP
         $spacer = TextFormat::GRAY . " | ";
         $kdrText = TextFormat::GREEN . "K: " . $kills . $spacer . TextFormat::DARK_RED . "D: " . $deaths . $spacer . TextFormat::YELLOW . "R: " . $kdr;
 
-        // Check if the player is not on a spectator team
-        if (!$myTeam->isSpecTeam()) {
-          // put in our score since we are an in-game team
-          ScoreFactory::setScoreLine($player, 4, $indent . $kdrText . $indent);  // Display KDR above scores
-          ScoreFactory::setScoreLine($player, 5, $indent . $myTeam->getFormattedScore() . $indent);
-          $line = 5; // Adjust line count since KDR was added
-        } else {
-          // No score or KDR for spectator teams
-          $line = 3;
-        }
+        // put in our score since we are an in-game team
+        ScoreFactory::setScoreLine($player, 4, $indent . $kdrText . $indent);  // Display KDR above scores
+        ScoreFactory::setScoreLine($player, 5, $indent . $myTeam->getFormattedScore() . $indent);
+        $line = 5; // Adjust line count since KDR was added
 
         // Now iterate all the other teams and paste in their scores underneath with their team color
         foreach ($this->teamManager->getTeams() as $team) {
@@ -367,9 +404,8 @@ abstract class Duel extends PvP
     }
   }
 
-
   /**
-   * @throws ScoreFactoryException|JsonException
+   * @throws ScoreFactoryException
    */
   public function updateSecond(): void
   {
@@ -406,7 +442,6 @@ abstract class Duel extends PvP
   }
 
   /**
-   * @throws JsonException
    * @throws ScoreFactoryException
    * @brief sends all back to hub and deletes the scene
    */
@@ -434,9 +469,12 @@ abstract class Duel extends PvP
   protected function startDuelForAllPlayers()
   {
     $this->duelStart();
-    foreach ($this->players as $swimPlayer) {
-      $swimPlayer->setNoClientPredictions(false); // Allow them to move
-      $this->applyKit($swimPlayer);
+    foreach ($this->teamManager->getTeams() as $team) {
+      if ($team->isSpecTeam()) continue;
+      foreach ($team->getPlayers() as $swimPlayer) {
+        $swimPlayer->setNoClientPredictions(false); // Allow them to move
+        $this->applyKit($swimPlayer);
+      }
     }
     $this->started = true; // Set the duel as started
   }
@@ -457,19 +495,41 @@ abstract class Duel extends PvP
 
   protected final function specMessage(): void
   {
-    if (count($this->players) <= 2) return; // don't do a message if no one watching
+    if (count($this->players) <= 2) {
+      return; // don't do a message if no one watching
+    }
 
     $team = $this->teamManager->getSpecTeam();
     $spectators = $team->getPlayers();
     $amount = count($spectators);
 
+    // if we have spectators
     if ($amount > 0) {
+      // add all the spectator nicks into an array
       $spectatorNicks = array_map(function ($player) {
         return $player->getNicks()->getNick();
       }, $spectators);
 
-      $msg = implode(', ', $spectatorNicks);
-      $this->sceneAnnouncement(TextFormat::AQUA . "Spectators (" . $amount . "): " . $msg);
+      // get all the original players from each team in that duel and add their nicks to an array to then filter out,
+      // because we don't consider original players as spectators
+      $originals = array();
+      $teams = $this->teamManager->getTeams();
+      foreach ($teams as $team) {
+        if (!$team->isSpecTeam()) {
+          foreach ($team->getOriginalPlayers() as $player) {
+            $nick = $player?->getNicks()?->getNick() ?? "";
+            if ($nick != "") {
+              $originals[] = $nick;
+            }
+          }
+        }
+      }
+
+      // filter out original players from spectator nicks
+      $filteredSpectatorNicks = array_diff($spectatorNicks, $originals);
+
+      $msg = implode(', ', $filteredSpectatorNicks);
+      $this->sceneAnnouncement(TextFormat::AQUA . "Spectators (" . count($filteredSpectatorNicks) . "): " . $msg);
     }
   }
 
@@ -493,20 +553,34 @@ abstract class Duel extends PvP
     return $populatedTeamsCount == 1 ? $winningTeam : null;
   }
 
+  // on removing a player from a scene, if not finished, and they were not a spectator, then it is an elimination
+  public function playerRemoved(SwimPlayer $player): void
+  {
+    if (!$this->finished) {
+      $team = $this->getPlayerTeam($player);
+      if ($team && !$team->isSpecTeam()) {
+        $this->playerElimination($player);
+      }
+    }
+  }
+
   /*
    * things that consider a duel over via player elimination:
    * no players left on any other teams except for one
    * TO DO: duel clean up if no winning team possible
    */
-  public final function playerElimination(SwimPlayer $swimPlayer): void
+  protected final function playerElimination(SwimPlayer $swimPlayer): void
   {
     if (!$this->finished) {
-      $this->addToLosers($swimPlayer);
-      $this->getPlayerTeam($swimPlayer)?->removePlayer($swimPlayer);
-      $this->teamManager->getSpecTeam()->addPlayer($swimPlayer); // adding to spec team will reset the player's inventory and put them in spectator for us
-      $winningTeam = $this->getWinningTeam();
-      if (isset($winningTeam)) {
-        $this->handleWin($winningTeam, $this->teamManager->getFirstOpposingTeam($winningTeam));
+      $team = $this->getPlayerTeam($swimPlayer);
+      if ($team && !$team->isSpecTeam()) {
+        $this->addToLosers($swimPlayer); // put them in the losers list
+        $this->getPlayerTeam($swimPlayer)?->removePlayer($swimPlayer); // remove from their old team they were playing in
+        $this->teamManager->getSpecTeam()->addPlayer($swimPlayer); // adding to spec team will reset the player's inventory and put them in spectator for us
+        $winningTeam = $this->getWinningTeam();
+        if (isset($winningTeam)) {
+          $this->handleWin($winningTeam, $this->teamManager->getFirstOpposingTeam($winningTeam));
+        }
       }
     }
   }
@@ -522,7 +596,6 @@ abstract class Duel extends PvP
         foreach ($team->getPlayers() as $player) {
           $this->deathEffect($player);
           $player->setGameMode(GameMode::SPECTATOR());
-          $player->setInvisible();
           // remove from the team and make them a loser
           $team->removePlayer($player);
           $this->addToLosers($player);
@@ -540,6 +613,15 @@ abstract class Duel extends PvP
   {
     $this->finished = true;
     $this->duelOver($winners, $losers);
+    if (SwimCore::$DEBUG) $this->dumpDuel();
+    // some better UX
+    foreach ($this->players as $player) {
+      if ($this->getPlayerTeam($player) === $winners) {
+        $player->sendTitle(TextFormat::GREEN . "VICTORY", "You Won!", 5, 60, 5);
+      } else {
+        $player->sendTitle(TextFormat::RED . "Game Over", "Warping to hub..", 5, 60, 5);
+      }
+    }
   }
 
   public function exit(): void
@@ -549,7 +631,6 @@ abstract class Duel extends PvP
   }
 
   /**
-   * @throws JsonException
    * @throws ScoreFactoryException
    */
   private function sendToHub(): void
@@ -582,6 +663,68 @@ abstract class Duel extends PvP
   public function setIsPartyDuel(bool $isPartyDuel): void
   {
     $this->isPartyDuel = $isPartyDuel;
+  }
+
+  /**
+   * @param Team $winningTeam
+   * @return Team|null
+   * @brief gets the first losing team that isn't a spectator team
+   */
+  public function getPartyDuelLosingTeam(Team $winningTeam): ?Team
+  {
+    foreach ($this->teamManager->getTeams() as $team) {
+      if ($team !== $winningTeam && !$team->isSpecTeam()) return $team;
+    }
+    return null;
+  }
+
+  public function dumpDuel(): void
+  {
+    echo "\n" . $this->sceneName . " {\n";
+    foreach ($this->teamManager->getTeams() as $team) {
+      echo "\n";
+      $name = $team->getTeamName();
+      $score = $team->getScore();
+      echo $name . " | Score: " . $score . "\n";
+      $names = array();
+      foreach ($team->getPlayers() as $player) {
+        $names[] = $player->getName();
+      }
+      if (!empty($names)) {
+        $nameStr = implode(', ', $names);
+        echo $nameStr . "\n";
+      }
+    }
+    echo "\n}\n";
+  }
+
+  /**
+   * @throws ScoreFactoryException
+   */
+  public function sceneItemUseEvent(PlayerItemUseEvent $event, SwimPlayer $swimPlayer): void
+  {
+    if (!$this->spectatorControls($event, $swimPlayer)) {
+      parent::sceneItemUseEvent($event, $swimPlayer);
+    }
+  }
+
+  /**
+   * @return bool determining if we did an action or not
+   * @throws ScoreFactoryException
+   */
+  protected final function spectatorControls(PlayerItemUseEvent $event, SwimPlayer $swimPlayer): bool
+  {
+    if ($swimPlayer->getGamemode() == GameMode::SPECTATOR) {
+      $itemName = $event->getItem()->getCustomName();
+      if ($itemName == TextFormat::RED . "Leave") {
+        $swimPlayer->getSceneHelper()->setNewScene('Hub');
+        $swimPlayer->sendMessage("§7Teleporting to hub...");
+        $this->sceneAnnouncement(TextFormat::AQUA . $swimPlayer->getNicks()->getNick() . " Stopped Spectating");
+        return true;
+      }
+    }
+
+    return false;
   }
 
 }
