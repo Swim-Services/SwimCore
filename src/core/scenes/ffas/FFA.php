@@ -35,6 +35,11 @@ abstract class FFA extends PvP
     return true;
   }
 
+  public function isFFA(): bool
+  {
+    return true;
+  }
+
   public function init(): void
   {
     $this->teamManager->makeTeam('players', TextFormat::RESET);
@@ -52,9 +57,14 @@ abstract class FFA extends PvP
   // pvp mechanics
   public function sceneEntityDamageByEntityEvent(EntityDamageByEntityEvent $event, SwimPlayer $swimPlayer): void
   {
-    $victim = $event->getEntity(); // which should be $swimPlayer
     $attacker = $event->getDamager();
-    if ($victim instanceof SwimPlayer && $attacker instanceof SwimPlayer) {
+    if ($attacker instanceof SwimPlayer) {
+
+      // can't attack teammates
+      if ($this->arePlayersInSameTeam($swimPlayer, $attacker)) {
+        $event->cancel();
+        return;
+      }
 
       // combat logger is used for this to prevent 3rd partying
       if (!$this->interruptAllowed) {
@@ -70,15 +80,15 @@ abstract class FFA extends PvP
       $event->setAttackCooldown($this->hitCoolDown);
 
       // callback scripting event
-      $this->playerHit($attacker, $victim, $event);
+      $this->playerHit($attacker, $swimPlayer, $event);
 
       // Death logic to set spec and send message and warp to hub after a few seconds (also checks if wasn't cancelled by player hit)
-      if ($event->getFinalDamage() >= $victim->getHealth() && !$event->isCancelled()) {
+      if ($event->getFinalDamage() >= $swimPlayer->getHealth() && !$event->isCancelled()) {
         $event->cancel(); // cancel event so we don't kill them
 
         // callback scripting events
-        $this->playerKilled($attacker, $victim, $event);
-        $this->defaultDeathHandle($attacker, $victim);
+        $this->playerKilled($attacker, $swimPlayer, $event);
+        $this->defaultDeathHandle($attacker, $swimPlayer);
       }
     }
   }

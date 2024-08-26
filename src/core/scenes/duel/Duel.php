@@ -154,19 +154,11 @@ abstract class Duel extends PvP
 
   public function sceneEntityDamageByEntityEvent(EntityDamageByEntityEvent $event, SwimPlayer $swimPlayer): void
   {
-    $victim = $event->getEntity(); // which should be $swimPlayer
     $attacker = $event->getDamager();
-    if ($victim instanceof SwimPlayer && $attacker instanceof SwimPlayer) {
-      $attackerSwimPlayer = $this->getSwimPlayerInScene($attacker);
-
-      // return and cancel if attacker for some reason has no swim player
-      if (!$attackerSwimPlayer) {
-        $event->cancel();
-        return;
-      }
+    if ($attacker instanceof SwimPlayer) {
 
       // can't attack teammates
-      if ($this->arePlayersInSameTeam($swimPlayer, $attackerSwimPlayer)) {
+      if ($this->arePlayersInSameTeam($swimPlayer, $attacker)) {
         $event->cancel();
         return;
       }
@@ -175,7 +167,7 @@ abstract class Duel extends PvP
       $kb = $this->kb;
 
       // minimize the KB dealt if attacker cps is above the max value
-      if ($this->ranked && ($attackerSwimPlayer->getClickHandler()->getCPS() > ClickHandler::CPS_MAX)) {
+      if ($this->ranked && ($attacker->getClickHandler()->getCPS() > ClickHandler::CPS_MAX)) {
         $vKB /= 1.1;
         $kb /= 1.1;
       }
@@ -186,16 +178,16 @@ abstract class Duel extends PvP
       $event->setAttackCooldown($this->hitCoolDown);
 
       // call back for hitting another player (This is maybe not good because we might want a way to have different callbacks for when hit by a projectile)
-      $this->playerHit($attackerSwimPlayer, $swimPlayer, $event);
+      $this->playerHit($attacker, $swimPlayer, $event);
 
       // update who last hit them
-      $victim->getCombatLogger()->setlastHitBy($attacker);
+      $swimPlayer->getCombatLogger()->setlastHitBy($attacker);
 
       // Death logic
-      if ($event->getFinalDamage() >= $victim->getHealth()) {
+      if ($event->getFinalDamage() >= $swimPlayer->getHealth()) {
         $event->cancel(); // cancel event, so we don't vanilla kill them
         // call back the functions the derived scene must implement
-        $this->playerKilled($attackerSwimPlayer, $swimPlayer, $event);
+        $this->playerKilled($attacker, $swimPlayer, $event);
       }
     }
   }

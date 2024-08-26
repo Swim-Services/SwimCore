@@ -187,6 +187,21 @@ class SceneSystem extends System
 
   /**
    * @return int
+   * @breif returns the amount of players in ffa scenes on the server
+   */
+  public function getInFFACount(): int {
+    $count = 0;
+    foreach ($this->scenes as $scene) {
+      if ($scene->isFFA()) {
+        $count += $scene->getPlayerCount();
+      }
+    }
+
+    return $count;
+  }
+
+  /**
+   * @return int
    * @breif returns the amount of players queued on the server (count of players in the queue scene)
    */
   public function getQueuedCount(): int

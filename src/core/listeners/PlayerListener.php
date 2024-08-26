@@ -403,7 +403,7 @@ class PlayerListener implements Listener
     $sp->event($event, BehaviorEventEnums::PLAYER_JUMP_EVENT);
     $sp->getSceneHelper()?->getScene()->scenePlayerJumpEvent($event, $sp);
   }
-  
+
   // lag causer possibly, we do need this though but only for behavior components
   public function dataPacketReceiveEvent(DataPacketReceiveEvent $event)
   {

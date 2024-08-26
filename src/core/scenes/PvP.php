@@ -119,7 +119,7 @@ abstract class PvP extends Scene
   // you really should override this method
   protected function playerDiedToMiscDamage(EntityDamageEvent $event, SwimPlayer $swimPlayer): void
   {
-    var_dump("WARNING | " . $this->sceneName . " DID NOT HANDLE NATURAL CAUSE DEATH OF PLAYER " . $swimPlayer->getName());
+    echo("WARNING | " . $this->sceneName . " DID NOT HANDLE NATURAL CAUSE DEATH OF PLAYER " . $swimPlayer->getName() . "\n");
   }
 
   private function adjustFallDamage(EntityDamageEvent $event, SwimPlayer $swimPlayer): void
@@ -200,7 +200,7 @@ abstract class PvP extends Scene
   // you should really override this
   protected function playerDiedToChildEntity(EntityDamageByChildEntityEvent $event, SwimPlayer $victim, SwimPlayer $attacker, Entity $childEntity): void
   {
-    var_dump("WARNING | " . $this->sceneName . " DID NOT HANDLE CHILD ENTITY KILL ON PLAYER " . $victim->getName());
+    echo("WARNING | " . $this->sceneName . " DID NOT HANDLE CHILD ENTITY KILL ON PLAYER " . $victim->getName() . "\n");
   }
 
   // optional override

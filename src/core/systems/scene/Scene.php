@@ -439,4 +439,9 @@ abstract class Scene
     $this->cancelCheck(BehaviorEventEnums::BUCKET_FILL_EVENT, $event);
   }
 
+  public function isFFA(): bool
+  {
+    return true;
+  }
+
 }
