@@ -134,7 +134,8 @@ One of the most powerful features of SwimCore is the ability to **auto-load PHP 
 
 This repo contains only the **game engine**.
 
-- **Anticheat and Security**: Any swim.gg anticheat and security implementations are excluded.
+- **Anticheat and Security**: Any swim.gg anticheat detections and security implementations are excluded.
+- **Raklib left out**: Unfortunately for some security reasons, we have to leave out our RakLib interface code. This means the code for rotating MOTDS is not present.
 - **Database Tables**: Contains basic tables for storing player history, settings, punishments, and ranks.
 - **Punishment Commands**: Muting and banning commands are included, but without advanced features like alternate account tracking via client data collection.
 
