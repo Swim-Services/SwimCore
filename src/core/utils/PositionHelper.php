@@ -254,4 +254,35 @@ class PositionHelper
     return ($float1 + (($float2 - $float1) * $percentage));
   }
 
+  /**
+   * @brief Any direction means it can offset by n amount of units in either the positive or negative respected axis.
+   * @param Position $position - The original position to be offset.
+   * @param int $n - The minimum offset value.
+   * @param int $n2 - The maximum offset value.
+   * @param bool $anyDirection - If true, offset can be positive or negative. If false, only positive.
+   * @return Position - The new position with the random offset applied.
+   */
+  public static function offSetRandomlyBy(Position $position, int $n, int $n2, bool $anyDirection = true): Position
+  {
+    // Generate random offsets for each coordinate
+    $xOffset = rand($n, $n2);
+    $yOffset = rand($n, $n2);
+    $zOffset = rand($n, $n2);
+
+    // If anyDirection is true, randomly determine if each offset should be negative
+    if ($anyDirection) {
+      $xOffset *= (rand(0, 1) == 0) ? -1 : 1;
+      $yOffset *= (rand(0, 1) == 0) ? -1 : 1;
+      $zOffset *= (rand(0, 1) == 0) ? -1 : 1;
+    }
+
+    // Calculate the new position
+    $newX = $position->x + $xOffset;
+    $newY = $position->y + $yOffset;
+    $newZ = $position->z + $zOffset;
+
+    // Return the new position object
+    return new Position($newX, $newY, $newZ, $position->world);
+  }
+
 }

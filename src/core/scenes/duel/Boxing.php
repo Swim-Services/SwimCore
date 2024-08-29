@@ -138,8 +138,8 @@ class Boxing extends Duel
   {
     if ($player->isScoreboardEnabled()) {
       try {
-        $indent = $this->startDuelScoreBoardAndGetIndent($player);
-        $line = 4;
+        $this->startDuelScoreBoard($player);
+        $line = 2;
         // show all team scores
         foreach ($this->teamManager->getTeams() as $team) {
           if ($team->isSpecTeam()) continue;
@@ -147,11 +147,11 @@ class Boxing extends Duel
           $score = $team->getScore();
           $target = $team->getTargetScore();
           $color = $team->getTeamColor();
-          $teamString = $indent . $color . $name . TextFormat::GRAY . ": " . $color . $score . TextFormat::GRAY . "/" . $color . $target . $indent;
-          ScoreFactory::setScoreLine($player, $line++, $teamString);
+          $teamString = $color . $name . TextFormat::GRAY . ": " . $color . $score . TextFormat::GRAY . "/" . $color . $target;
+          ScoreFactory::setScoreLine($player, ++$line, " " . $teamString);
         }
         // submit
-        $this->submitScoreboardWithBottomFromLine($player, $line);
+        $this->submitScoreboardWithBottomFromLine($player);
       } catch (ScoreFactoryException $e) {
         Server::getInstance()->getLogger()->info($e->getMessage());
       }
@@ -189,14 +189,12 @@ class Boxing extends Duel
         // variables needed
         $ping = $player->getNslHandler()->getPing();
         $time = TimeHelper::digitalClockFormatter($this->seconds);
-        $indent = "  ";
         // define lines
-        ScoreFactory::setScoreLine($player, 1, "  =============   ");
-        ScoreFactory::setScoreLine($player, 2, $indent . "§bPing: §3" . $ping . $indent);
-        ScoreFactory::setScoreLine($player, 3, $indent . "§a" . $pHits . "§7 |§c " . $opHits . ($opHits > $pHits ? " §c(" : " §a(+") . $pHits - $opHits . ")" . $indent);
-        ScoreFactory::setScoreLine($player, 4, $indent . "§b" . $time . $indent);
+        ScoreFactory::setScoreLine($player, 1, " §bPing: §3" . $ping);
+        ScoreFactory::setScoreLine($player, 2, " §a" . $pHits . "§7 |§c " . $opHits . ($opHits > $pHits ? " §c(" : " §a(+") . $pHits - $opHits . ")");
+        ScoreFactory::setScoreLine($player, 3, " §b" . $time);
 
-        $this->submitScoreboardWithBottomFromLine($player, 5);
+        $this->submitScoreboardWithBottomFromLine($player);
       } catch (ScoreFactoryException $e) {
         Server::getInstance()->getLogger()->info($e->getMessage());
       }

@@ -276,10 +276,9 @@ abstract class Duel extends PvP
   /**
    * Fills out the first 3 lines of the board, so you must set the next line at 4
    * @param SwimPlayer $player
-   * @return string
    * @throws ScoreFactoryException
    */
-  protected function startDuelScoreBoardAndGetIndent(SwimPlayer $player): string
+  protected function startDuelScoreBoard(SwimPlayer $player): void
   {
     $player->refreshScoreboard(TextFormat::AQUA . "Swimgg.club");
     ScoreFactory::sendObjective($player);
@@ -287,25 +286,18 @@ abstract class Duel extends PvP
     // variables needed
     $ping = $player->getNslHandler()->getPing();
     $time = TimeHelper::digitalClockFormatter($this->seconds);
-    $indent = "  "; // this should be a const somewhere instead
 
     // define starting lines
-    ScoreFactory::setScoreLine($player, 1, "  =============   ");
-    ScoreFactory::setScoreLine($player, 2, $indent . "§bPing: §3" . $ping . $indent);
-    ScoreFactory::setScoreLine($player, 3, $indent . "§bTime: §3" . $time . $indent);
-    return $indent;
+    ScoreFactory::setScoreLine($player, 1, " §bPing: §3" . $ping);
+    ScoreFactory::setScoreLine($player, 2, " §bTime: §3" . $time);
   }
 
   /**
    * @throws ScoreFactoryException
    */
-  protected function submitScoreboardWithBottomFromLine(SwimPlayer $player, int $line): void
+  protected function submitScoreboardWithBottomFromLine(SwimPlayer $player): void
   {
-    $indent = "  "; // this should be a const somewhere instead
-    // bottom lines
-    ScoreFactory::setScoreLine($player, $line, $indent . "§bdiscord.gg/§3swim" . $indent);
-    ScoreFactory::setScoreLine($player, ++$line, "  =============  ");
-    // send lines
+    // ScoreFactory::setScoreLine($player, $line, " §bdiscord.gg/§3swim"); // promotion was kinda shoved down your throat for no reason
     ScoreFactory::sendLines($player);
   }
 
@@ -329,8 +321,8 @@ abstract class Duel extends PvP
   {
     if ($player->isScoreboardEnabled()) {
       try {
-        $this->startDuelScoreBoardAndGetIndent($player);
-        $this->submitScoreboardWithBottomFromLine($player, 4);
+        $this->startDuelScoreBoard($player);
+        $this->submitScoreboardWithBottomFromLine($player);
       } catch (ScoreFactoryException $e) {
         Server::getInstance()->getLogger()->info($e->getMessage());
       }
@@ -342,16 +334,16 @@ abstract class Duel extends PvP
    */
   protected function duelScoreboardWithScoreSpectator(SwimPlayer $player): void
   {
-    $indent = $this->startDuelScoreBoardAndGetIndent($player);
-    $line = 4;
+    $this->startDuelScoreBoard($player);
+    $line = 3;
     // Now iterate all the other teams and paste in their scores underneath with their team color
     foreach ($this->teamManager->getTeams() as $team) {
       if ($team->isSpecTeam()) continue; // skip spectator teams
-      ScoreFactory::setScoreLine($player, ++$line, $indent . $team->getFormattedScore() . $indent); // place the line for the other team's score
+      ScoreFactory::setScoreLine($player, ++$line, " " . $team->getFormattedScore()); // place the line for the other team's score
     }
 
     // Send all lines to scoreboard
-    $this->submitScoreboardWithBottomFromLine($player, ++$line);
+    $this->submitScoreboardWithBottomFromLine($player);
   }
 
   /**
@@ -369,27 +361,27 @@ abstract class Duel extends PvP
         }
 
         // scoreboard format helpers and stuff
-        $indent = $this->startDuelScoreBoardAndGetIndent($player);
+        $this->startDuelScoreBoard($player);
 
         $kills = $player->getAttributes()->getAttribute("kills") ?? 0;
         $deaths = $player->getAttributes()->getAttribute("deaths") ?? 0;
         $kdr = $deaths > 0 ? round($kills / $deaths, 1) : $kills;  // KDR calculated and rounded to one decimal place
         $spacer = TextFormat::GRAY . " | ";
-        $kdrText = TextFormat::GREEN . "K: " . $kills . $spacer . TextFormat::DARK_RED . "D: " . $deaths . $spacer . TextFormat::YELLOW . "R: " . $kdr;
+        $kdrText = TextFormat::GREEN . " K: " . $kills . $spacer . TextFormat::DARK_RED . "D: " . $deaths . $spacer . TextFormat::YELLOW . "R: " . $kdr;
 
         // put in our score since we are an in-game team
-        ScoreFactory::setScoreLine($player, 4, $indent . $kdrText . $indent);  // Display KDR above scores
-        ScoreFactory::setScoreLine($player, 5, $indent . $myTeam->getFormattedScore() . $indent);
-        $line = 5; // Adjust line count since KDR was added
+        ScoreFactory::setScoreLine($player, 3, $kdrText);  // Display KDR above scores
+        ScoreFactory::setScoreLine($player, 4, " " . $myTeam->getFormattedScore());
+        $line = 4; // Adjust line count since KDR was added
 
         // Now iterate all the other teams and paste in their scores underneath with their team color
         foreach ($this->teamManager->getTeams() as $team) {
           if ($team === $myTeam || $team->isSpecTeam()) continue; // skip our self and spectator teams
-          ScoreFactory::setScoreLine($player, ++$line, $indent . $team->getFormattedScore() . $indent); // place the line for the other team's score
+          ScoreFactory::setScoreLine($player, ++$line, " " . $team->getFormattedScore()); // place the line for the other team's score
         }
 
         // Send all lines to scoreboard
-        $this->submitScoreboardWithBottomFromLine($player, ++$line);
+        $this->submitScoreboardWithBottomFromLine($player);
       } catch (ScoreFactoryException $e) {
         Server::getInstance()->getLogger()->info($e->getMessage());
       }

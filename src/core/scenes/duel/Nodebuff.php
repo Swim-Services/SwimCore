@@ -21,7 +21,7 @@ class Nodebuff extends Duel
 
   public static function getIcon(): string
   {
-    return "textures/items/potion_bottle_heal";
+    return "textures/items/potion_bottle_splash_heal";
   }
 
   public function init(): void

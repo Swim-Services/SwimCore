@@ -292,31 +292,53 @@ class SwimPlayer extends Player
 
   /**
    * @throws ScoreFactoryException
-   * some stuff we do have to do manually, like removing scoreboard and inventory
+   * Some stuff we do have to do manually, like removing scoreboard and inventory
+   * All of these options can be manually switched off to not do a full clearance via parameters
    */
-  public function cleanPlayerState(): void
+  public function cleanPlayerState
+  (
+    bool $clearComponents = true,
+    bool $clearBehaviors = true,
+    bool $clearInventory = true,
+    bool $clearScoreBoard = true,
+    bool $clearTags = true,
+    bool $clearBossBar = true,
+  ): void
   {
     if (!$this->isConnected()) return;
 
     // clear inventory
-    InventoryUtil::fullPlayerReset($this);
-    // remove scoreboard
-    $this->removeScoreboard();
+    if ($clearInventory) {
+      InventoryUtil::fullPlayerReset($this);
+    }
 
-    // clear all
-    foreach ($this->components as $component) {
-      $component->clear();
+    // remove scoreboard
+    if ($clearScoreBoard) {
+      $this->removeScoreboard();
+    }
+
+    // clear all components
+    if ($clearComponents) {
+      foreach ($this->components as $component) {
+        $component->clear();
+      }
     }
 
     // do the same for the event behavior components
-    $this->eventBehaviorComponentManager->clear();
+    if ($clearBehaviors) {
+      $this->eventBehaviorComponentManager->clear();
+    }
 
     // remove score tag and set the name tag back to the player's name
-    $this->setScoreTag(""); // setting it to an empty string hides it
-    $this->setNameTag($this->getName());
+    if ($clearTags) {
+      $this->setScoreTag(""); // setting it to an empty string hides it
+      $this->setNameTag($this->getName());
+    }
 
     // remove the boss bar
-    $this->removeBossBar();
+    if ($clearBossBar) {
+      $this->removeBossBar();
+    }
   }
 
   // below are getters for each component

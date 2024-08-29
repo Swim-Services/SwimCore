@@ -441,7 +441,7 @@ abstract class Scene
 
   public function isFFA(): bool
   {
-    return true;
+    return false;
   }
 
 }

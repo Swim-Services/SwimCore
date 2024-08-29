@@ -67,8 +67,9 @@ abstract class FFA extends PvP
       }
 
       // combat logger is used for this to prevent 3rd partying
+      $blocked = $attacker->getCombatLogger()->handleAttack($swimPlayer); // called anyway for the sake of logging
       if (!$this->interruptAllowed) {
-        if (!$attacker->getCombatLogger()->handleAttack($swimPlayer)) {
+        if (!$blocked) {
           $event->cancel();
           return;
         }
@@ -93,14 +94,23 @@ abstract class FFA extends PvP
     }
   }
 
-  protected function defaultDeathHandle(?SwimPlayer $attacker, SwimPlayer $victim): void
+  /*
+   * Explode controls if an explosion animation effects happens or not
+   * UseTeamColorForKillStreak controls if it uses the attackers team color or rank color for if they have a kill streak message to be sent in the scene
+   */
+  protected function defaultDeathHandle(?SwimPlayer $attacker, SwimPlayer $victim, bool $explode = true, bool $useTeamColorForKillStreak = false): void
   {
     // cancel cool downs for the attacker since we just re-kitted them
     if ($attacker) {
       $attacker->getCoolDowns()?->clearAll();
       $kills = $attacker->getAttributes()?->emplaceIncrementIntegerAttribute("kill streak") ?? 0; // update kill streak
       if ($kills >= 3) {
-        $name = ($attacker->getCosmetics()?->getNameColor() ?? "") . ($attacker->getNicks()?->getNick() ?? $attacker->getName());
+        if ($useTeamColorForKillStreak) {
+          $color = $this->getPlayerTeam($attacker)?->getTeamColor() ?? "";
+        } else {
+          $color = ($attacker->getCosmetics()?->getNameColor() ?? "");
+        }
+        $name = $color . ($attacker->getNicks()?->getNick() ?? $attacker->getName());
         $this->sceneAnnouncement($name . TextFormat::GREEN . " is on a " . $kills . " Kill Streak!");
       }
     }
@@ -113,7 +123,9 @@ abstract class FFA extends PvP
     // kill effect
     // CoolAnimations::lightningBolt($victim->getPosition(), $victim->getWorld());
     CoolAnimations::bloodDeathAnimation($victim->getPosition(), $victim->getWorld());
-    CoolAnimations::explodeAnimation($victim->getPosition(), $victim->getWorld());
+    if ($explode) {
+      CoolAnimations::explodeAnimation($victim->getPosition(), $victim->getWorld());
+    }
 
     if (!$this->respawnInArena) {
       // warp back to hub after a few seconds
@@ -165,23 +177,16 @@ abstract class FFA extends PvP
         $ping = $player->getNslHandler()->getPing();
         $coolDown = $player->getCombatLogger()->getCombatCoolDown();
         $kills = strval($player->getAttributes()->getAttribute("kill streak") ?? 0);
-        $indent = "  ";
 
         // define lines
-        ScoreFactory::setScoreLine($p, 1, "  =============   ");
-        ScoreFactory::setScoreLine($p, 2, $indent . "§bFFA: §3" . $onlineCount . " Players" . $indent);
-        ScoreFactory::setScoreLine($p, 3, $indent . "§bPing: §3" . $ping . $indent);
-        ScoreFactory::setScoreLine($p, 4, $indent . "§bKill Streak: §3" . $kills . $indent);
+        ScoreFactory::setScoreLine($p, 1, " §bFFA: §3" . $onlineCount . " Players");
+        ScoreFactory::setScoreLine($p, 2, " §bPing: §3" . $ping);
+        ScoreFactory::setScoreLine($p, 3, " §bKill Streak: §3" . $kills);
 
-        $line = 5;
         if (!$this->interruptAllowed) {
-          ScoreFactory::setScoreLine($p, $line, $indent . "§bCombat: §3" . $coolDown . $indent);
-        } else {
-          $line--;
+          ScoreFactory::setScoreLine($p, 4, " §bCombat: §3" . $coolDown);
         }
 
-        ScoreFactory::setScoreLine($p, ++$line, $indent . "§bdiscord.gg/§3swim" . $indent);
-        ScoreFactory::setScoreLine($p, ++$line, "  =============  ");
         // send lines
         ScoreFactory::sendLines($p);
       } catch (ScoreFactoryException $e) {

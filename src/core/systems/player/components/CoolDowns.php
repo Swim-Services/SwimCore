@@ -17,6 +17,7 @@ class CoolDowns extends Component
   private array $coolDowns = [];
   private float $focusedMaxTime;
   private int $focusedItemID;
+  const NO_ITEM_ID = -69420;
 
   public function __construct(SwimCore $core, SwimPlayer $swimPlayer)
   {
@@ -42,15 +43,29 @@ class CoolDowns extends Component
       $coolDown[self::TIME] -= 0.05;
       if ($coolDown[self::TIME] <= 0) {
         if ($coolDown[self::NOTIFY]) {
-          $this->swimPlayer->sendMessage(TextFormat::GREEN . "Your " . $coolDown[self::NAME] . TextFormat::GREEN . " cool down has expired");
+          $this->swimPlayer->sendMessage(TextFormat::GREEN . "Your " . $coolDown[self::NAME] . TextFormat::RESET . TextFormat::GREEN . " cool down has expired");
         }
         unset($this->coolDowns[$itemId]);
         if ($this->focusedItemID == $itemId) {
           $this->swimPlayer->getXpManager()?->setXpAndProgress(0, 0);
-          $this->focusedItemID = -69420; // back to unreachable ID
+          $this->focusedItemID = -self::NO_ITEM_ID; // back to unreachable ID
         }
       } elseif ($this->focusedItemID == $itemId) {
-        $percent = $coolDown[self::TIME] / $this->focusedMaxTime;
+
+        // The if else statement below is to address an issue that can happen when 2 different items marked as focused cool downs are activated (can only have one focused).
+        // As a gameplay programmer you should avoid causing this situation because the XP bar will use the last item in the array marked as a focused cool down,
+        // but while still using the single focused max time variable, which is often intended for a different cool down that was the original single focused item.
+        // This is a crappy patch fix to avoid a crash due to accidental scenarios this can happen.
+
+        // Ensure focusedMaxTime is not 0 to prevent division by zero
+        if ($this->focusedMaxTime > 0) {
+          // Calculate percent and ensure it is clamped between 0 and 1
+          $percent = max(0, min(1, $coolDown[self::TIME] / $this->focusedMaxTime));
+        } else {
+          // Handle the case when focusedMaxTime is 0 (default to 0 percent as the safest value)
+          $percent = 0;
+        }
+
         $this->swimPlayer->getXpManager()?->setXpAndProgress(ceil($coolDown[self::TIME]), $percent);
       }
     }
