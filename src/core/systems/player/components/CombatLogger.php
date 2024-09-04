@@ -9,9 +9,9 @@ use core\systems\player\SwimPlayer;
 class CombatLogger extends Component
 {
 
-  private ?SwimPlayer $lastHit; // who last hit us
-  private ?SwimPlayer $lastHitBy; // who was last hit by us
-  private ?SwimPlayer $currentlyFighting;
+  private ?SwimPlayer $lastHit = null; // who last hit us
+  private ?SwimPlayer $lastHitBy = null; // who was last hit by us
+  private ?SwimPlayer $currentlyFighting = null;
 
   private bool $usingCombatCoolDown; // if we can only hit a player that we are in combat with currently
   private int $comboCounter;
@@ -39,9 +39,14 @@ class CombatLogger extends Component
 
   public function reset(): void
   {
+    /* this is bad and was giving uninitialized field issues, we simply want to make the pointer null
     unset($this->lastHit);
     unset($this->lastHitBy);
     unset($this->currentlyFighting);
+    */
+    $this->lastHit = null;
+    $this->lastHitBy = null;
+    $this->currentlyFighting = null;
 
     // Resetting other variables to their default states
     $this->usingCombatCoolDown = false;
@@ -61,7 +66,7 @@ class CombatLogger extends Component
     }
     if ($this->combatCoolDown <= 0) {
       $this->inCombat = false;
-      unset($this->currentlyFighting);
+      $this->currentlyFighting = null;
     }
   }
 
@@ -214,13 +219,14 @@ class CombatLogger extends Component
    */
   public function getLastHitBy(): ?SwimPlayer
   {
+    if (!$this->lastHitBy?->isOnline()) return null; // stupid patch | TO DO: Fix player clean up in memory to be much more manual
     return $this->lastHitBy ?? null;
   }
 
   /**
-   * @param SwimPlayer $lastHitBy
+   * @param ?SwimPlayer $lastHitBy
    */
-  public function setLastHitBy(SwimPlayer $lastHitBy): void
+  public function setLastHitBy(?SwimPlayer $lastHitBy): void
   {
     $this->lastHitBy = $lastHitBy;
   }

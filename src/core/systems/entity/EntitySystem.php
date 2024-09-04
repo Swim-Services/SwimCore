@@ -56,6 +56,7 @@ class EntitySystem extends System
 
   public function playerLeavingScene(Player $player, Scene $scene): void
   {
+    if (!$player->isOnline()) return;  // avoid login exception
     foreach ($this->entities as $entity) {
       if ($entity->getParentScene() === $scene) {
         $entity->deSpawnActorFrom($player);
@@ -142,7 +143,8 @@ class EntitySystem extends System
    * @throws ReflectionException
    * @breif Deserializes all valid actor script prefabs and loads them into the entity factory
    */
-  private function deserialize(): void {
+  private function deserialize(): void
+  {
     $prefabsDir = Path::canonicalize(Path::join(__DIR__, '..', '..', 'custom', 'prefabs')); // back 2 directories hence the double '..'
     if (is_dir($prefabsDir)) {
       $this->loadActorScripts($prefabsDir);

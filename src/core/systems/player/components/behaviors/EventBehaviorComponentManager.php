@@ -2,7 +2,9 @@
 
 namespace core\systems\player\components\behaviors;
 
+use core\SwimCore;
 use core\systems\player\SwimPlayer;
+use core\utils\StackTracer;
 use pocketmine\event\entity\EntityDamageByEntityEvent;
 use pocketmine\event\Event;
 
@@ -16,6 +18,7 @@ class EventBehaviorComponentManager
 
   public function registerComponent(EventBehaviorComponent $component): void
   {
+    if (SwimCore::$DEBUG) echo($component->getPlayer()->getName() . " | " . $component->getComponentName() . " Component Added\n");
     $this->components[] = $component;
     $component->init();
   }
@@ -25,6 +28,11 @@ class EventBehaviorComponentManager
     // Find the key (index) of the component to be removed
     foreach ($this->components as $key => $component) {
       if ($component->getComponentName() === $componentName) {
+
+        if (SwimCore::$DEBUG) {
+          echo($component->getPlayer()->getName() . " Removing Component: " . $componentName . "\n");
+        }
+
         // Call exit method if required
         if ($callExit) {
           $component->exit();
@@ -37,14 +45,15 @@ class EventBehaviorComponentManager
     }
   }
 
-  public function clear(): void
+  public function clear(bool $callExit = true, bool $remove = true): void
   {
     foreach ($this->components as $key => $component) {
       $component->clear();
-      if ($component->isRemoveOnReset()) {
-        $component->exit();
-        unset($this->components[$key]);
-      }
+
+      if (SwimCore::$DEBUG) echo($component->getPlayer()->getName() . " | " . $component->getComponentName() . " | Cleared\n");
+
+      if ($callExit) $component->exit();
+      if ($remove || $component->isRemoveOnReset()) unset($this->components[$key]);
     }
   }
 
@@ -79,6 +88,7 @@ class EventBehaviorComponentManager
 
       // Check if the component should be destroyed
       if ($component->isDestroyMe()) {
+        if (SwimCore::$DEBUG) echo($component->getPlayer() . " | " . $component->getComponentName() . " | Expired\n");
         // Exit the component
         $component->exit();
         // Unset the component directly from the original array
@@ -92,6 +102,10 @@ class EventBehaviorComponentManager
     if (!empty($this->components)) {
       foreach ($this->components as $component) {
         if ($component->shouldUpdate()) {
+          if (SwimCore::$DEBUG) { // because of how virtual and willy-nilly this can get, good to have debug stuff set up
+            echo($component->getPlayer()->getName() . " | " . $component->getComponentName() . " | Received message: " . $message . "\n");
+            StackTracer::PrintStackTrace(); // this could really blow up
+          }
           $component->eventMessage($event, $message, $args);
         }
       }

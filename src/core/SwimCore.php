@@ -35,6 +35,8 @@ class SwimCore extends PluginBase
   public static string $customDataFolder;
   public bool $shuttingDown = false;
 
+  public static bool $DEBUG = false;
+
   private SystemManager $systemManager;
   private CommandLoader $commandLoader;
   private SwimConfig $swimConfig;

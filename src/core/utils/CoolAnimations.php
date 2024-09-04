@@ -5,6 +5,7 @@ namespace core\utils;
 use pocketmine\block\VanillaBlocks;
 use pocketmine\entity\Entity;
 use pocketmine\math\Vector3;
+use pocketmine\network\mcpe\NetworkBroadcastUtils;
 use pocketmine\network\mcpe\protocol\AddActorPacket;
 use pocketmine\network\mcpe\protocol\PlaySoundPacket;
 use pocketmine\network\mcpe\protocol\types\entity\PropertySyncData;
@@ -29,7 +30,7 @@ class CoolAnimations
     $particle = new BlockBreakParticle($block);
     $world->addParticle($pos, $particle, $world->getPlayers());
     // send packets
-    PacketsHelper::broadCastPacketsToPlayers($world->getPlayers(), [$lightning, $sound]);
+    NetworkBroadcastUtils::broadcastPackets($world->getPlayers(), [$lightning, $sound]);
   }
 
   public static function bloodDeathAnimation(Position $pos, World $world): void

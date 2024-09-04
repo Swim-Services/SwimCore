@@ -8,6 +8,7 @@ use core\systems\player\SwimPlayer;
 use pocketmine\block\VanillaBlocks;
 use pocketmine\entity\effect\EffectInstance;
 use pocketmine\entity\effect\VanillaEffects;
+use pocketmine\inventory\Inventory;
 use pocketmine\item\Item;
 use pocketmine\item\PotionType;
 use pocketmine\item\VanillaItems;
@@ -36,7 +37,7 @@ class InventoryUtil
 
   // clears a player's inventory, effects, xp, hp, food, flight, and sets them to adventure
   // sets all player states back as well, such as flying, input, and visibility
-  public static function fullPlayerReset(Player $player): void
+  public static function fullPlayerReset(SwimPlayer $player): void
   {
     self::clearInventory($player);
     self::clearXP($player);
@@ -189,6 +190,12 @@ class InventoryUtil
   public static function getSlotItemIsIn(SwimPlayer $player, Item $item): int
   {
     return $player->getInventory()->first($item);
+  }
+
+  // if the slot does not exist in the player's inventory, add item is called instead
+  public static function safeSetItem(Inventory $inv, int $slot, Item $item): void
+  {
+    $inv->slotExists($slot) ? $inv->setItem($slot, $item) : $inv->addItem($item);
   }
 
 }

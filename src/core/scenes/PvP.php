@@ -208,7 +208,7 @@ abstract class PvP extends Scene
   {
     if ($projectile instanceof ArrowEntity) {
       ServerSounds::playSoundToPlayer($hitter, 'note.bell', 2, 1);
-      $hitter->sendMessage(TextFormat::GREEN . $hitPlayer->getNicks()->getNick() . " Has " . $hitPlayer->getHealth() . " HP");
+      $hitter->sendMessage(TextFormat::GREEN . $hitPlayer->getNicks()->getNick() . " Has " . round($hitPlayer->getHealth(), 1) . " HP");
     }
   }
 

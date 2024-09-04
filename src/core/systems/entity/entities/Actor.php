@@ -98,6 +98,7 @@ class Actor extends Living
 
   public function deSpawnActorFrom(Player $player): void
   {
+    if (!$player->isOnline()) return; // avoid login exception
     $player->getNetworkSession()->sendDataPacket(RemoveActorPacket::create($this->getId()));
     // remember to remove from spawned list
     $id = spl_object_id($player);
